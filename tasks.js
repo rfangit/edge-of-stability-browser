@@ -295,17 +295,17 @@ export const TASKS = {
     hiddenDimRange: { min: 10, max: 200, default: 30 },
 
     defaults: {
-      eta: 0.01,
+      eta: 0.5,
       batchSize: 250  // full batch
     },
 
     recommended: {
-      description: 'tanh activation, 1 hidden layer, 30 neurons, lr = 0.01',
+      description: 'tanh activation, 1 hidden layer, 30 neurons, lr = 0.5',
       values: {
         activation: 'tanh',
         hiddenDim1: 30,
         useSecondLayer: false,
-        eta: 0.01
+        eta: 0.5
       }
     }
   }

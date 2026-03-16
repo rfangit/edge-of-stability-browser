@@ -48,11 +48,11 @@
   <p>One idea to answer this is the following: Consider a second-order Taylor expansion, which yields the following quadratic approximation</p>
   <p style="text-align: center;">$$f(\theta') \approx f(\theta) + f'(\theta)(\theta' - \theta) + \frac{1}{2}f''(\theta)(\theta' - \theta)^2$$</p>
   <p>Only when $f''(\theta) < 2/\eta$ is gradient descent able to converge to the minimum of this quadratic. Otherwise our model takes step sizes too large and increases in loss. Thus it is impossible for gradient descent to converge to minima when the sharpness ($f''(\theta)$) exceeds this value.</p>
-  <p>For multiple dimensions, our quadratic approximation is $f(\mathbf{x}) = \frac{1}{2}\mathbf{x}^\top A\,\mathbf{x} + \mathbf{b}^\top\mathbf{x} + c$, where $A$ is the Hessian ($\nabla^2 f$) and $\mathbf{b}$ is the gradient ($\nabla f$). The sharpness is then given by the largest eigenvalue of $A$, and if it exceeds $2/\eta$, gradient descent will diverge.</p>
-  <p>In real loss functions, we tend to observe the following two phenomena:</p>
+  <p>For multiple dimensions, our quadratic approximation is $f(\mathbf{x}) = \frac{1}{2}\mathbf{x}^\top A\,\mathbf{x} + \mathbf{b}^\top\mathbf{x} + c$, where $A$ is the Hessian ($\nabla^2 f$) and $\mathbf{b}$ is the gradient ($\nabla f$). The sharpness is then given by the largest eigenvalue of $A$, and if it exceeds $2/\eta$, gradient descent will diverge. This suggests our maximum learning rate is $\eta = 2/\lambda_{\max}$. If sharpness were constant, we could compute this initially to determine our learning rate.</p>
+  <p>However, in real loss functions we tend to observe the following two phenomena:</p>
   <ul style="margin-left: 1.5em;">
-    <li><strong>Progressive sharpening:</strong> So long as the sharpness is less than $2/\eta$, it tends to continually increase throughout training.</li>
-    <li><strong>Edge of stability:</strong> The sharpness eventually rises to $2/\eta$, at which point gradient descent becomes unstable and the loss oscillates. However, instead of continuing to increase, the sharpness hovers right around this threshold $2/\eta$.</li>
+    <li><strong>Progressive Sharpening:</strong> When the sharpness is less than $2/\eta$, it tends to continually increase throughout training.</li>
+    <li><strong>Edge of Stability:</strong> When the sharpness rises above $2/\eta$, gradient descent becomes unstable and the loss oscillates. However, instead of continuing to increase, the sharpness hovers right around this threshold $2/\eta$.</li>
   </ul>
   <p>Note that if the sharpness at initialization is already beyond $2/\eta$, the model usually doesn't decrease to this value but instead does not learn.</p>
   <p>In this page, you can explore this phenomenon yourself on a couple of small tasks. Note that the degree of progressive sharpening varies depending on the task and model, so we have chosen reasonable defaults so that you can observe this phenomenon relatively quickly.</p>
