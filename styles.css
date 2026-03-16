@@ -1,0 +1,178 @@
+/* MLP Trainer Styles */
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.page-title {
+  margin-top: 2em;
+  margin-bottom: 0;
+}
+
+.section-label {
+  font-size: 12px;
+  color: #888;
+  letter-spacing: 1px;
+  margin-top: 0;
+  margin-bottom: 1em;
+}
+
+/* Range slider styling */
+input[type="range"] {
+  accent-color: #555;
+  cursor: pointer;
+}
+
+.sim-button {
+  padding: 8px 20px;
+  font-size: 14px;
+  background-color: #f0f0f0;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.sim-button:hover { background-color: #e0e0e0; }
+.sim-button:active { background-color: #d0d0d0; }
+
+/* Setup boxes */
+.setup-box {
+  padding: 1.5em;
+  padding-top: 2.5em;
+  padding-bottom: 2.5em;
+  border-radius: 8px;
+  position: relative;
+  min-height: 80px;
+  margin-bottom: 1em;
+}
+
+.setup-box-label {
+  position: absolute;
+  left: 20px;
+  top: 50%;
+  transform: rotate(-90deg) translateX(-50%);
+  transform-origin: left center;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: pre;
+}
+
+.setup-box-content {
+  margin-left: 60px;
+  display: flex;
+  gap: 2em;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+/* Specific box colors */
+.box-task { background-color: #f0fff0; }
+.box-task .setup-box-label { color: #55aa55; }
+
+.box-network { background-color: #fff0f0; }
+.box-network .setup-box-label { color: #cc5555; }
+
+.box-training { background-color: #f0f4ff; }
+.box-training .setup-box-label { color: #5578cc; }
+
+/* Plots */
+.plots-container {
+  display: flex;
+  gap: 20px;
+  justify-content: center;
+}
+
+.plot-wrapper { flex: 0 0 500px; }
+
+.plot-box {
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: white;
+  padding: 20px;
+  padding-left: 40px;
+  padding-bottom: 40px;
+  height: 335px;
+}
+
+.plot-content {
+  height: 100%;
+  position: relative;
+}
+
+.plot-canvas {
+  width: 100%;
+  height: 100%;
+}
+
+/* Axis labels */
+.y-axis-label {
+  position: absolute;
+  top: 50%;
+  transform: rotate(-90deg) translateY(-50%);
+  transform-origin: center center;
+  font-size: 17px;
+  color: #666;
+  word-spacing: 0.3em;
+}
+
+.y-axis-label-loss { left: -32px; }
+.y-axis-label-norms { left: -40px; }
+
+.x-axis-label {
+  position: absolute;
+  bottom: -30px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 17px;
+  color: #666;
+}
+
+/* Plot controls */
+.logscale-control {
+  margin-top: 20px;
+  text-align: center;
+}
+
+.logscale-control label { margin-right: 30px; }
+
+/* Plot x-axis toggle */
+.plot-xaxis-toggle { font-size: 0.9em; }
+
+.plot-xaxis-toggle a {
+  color: #666;
+  text-decoration: none;
+  padding: 0.4em 0.8em;
+  display: inline-block;
+  border: 1px solid #ccc;
+  background: white;
+  transition: all 0.2s;
+}
+
+.plot-xaxis-toggle a:first-of-type {
+  border-radius: 4px 0 0 4px;
+  border-right: none;
+}
+
+.plot-xaxis-toggle a:last-of-type {
+  border-radius: 0 4px 4px 0;
+}
+
+.plot-xaxis-toggle a:hover { background: #eee; }
+
+.plot-xaxis-toggle a.active {
+  background: #333;
+  color: white;
+  border-color: #333;
+}
+
+/* Dropdowns */
+select {
+  padding: 4px 8px;
+  font-size: 14px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: white;
+}
