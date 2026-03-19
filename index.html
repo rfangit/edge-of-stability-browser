@@ -47,64 +47,68 @@
 
   <div class="tutorial-content">
 
-    <p>The edge of stability refers to a phenomenon often observed in neural network training. It is important for several reasons:</p>
+    <p> The dynamics of optimization in deep learning typically operate in a complex regime termed the edge of stability, which cannot be described by traditional analyses of optimization. In this tutorial, we'll explore this phenomenon.
+      <!-- 
+      The edge of stability refers to a phenomenon often observed in neural network training where traditional analyses of gradient descent optimization predict unstable dynamics, but actual 
+      
+      where the sharpness of the loss landscape (the largest eigenvalue of the Hessian) reaches a critical threshold determined by the learning rate, and training dynamics become chaotic yet still manage to optimize effectively. This phenomenon challenges traditional analyses of neural network optimization, which often assume that training occurs in stable regions of weight space where the sharpness is below this critical threshold.</p>
+      
+      often observed in neural network training. It is important for several reasons:</p>
     <ul>
       <li>Choosing learning rates small enough that it doesn't occur is usually suboptimal for compute.</li>
       <li>It explains the appearance of loss spikes.</li>
-      <li>It offers insight into loss landscape geometry and optimization dynamics while being robust to many hyperparameters.</li>
       <li>It describes when gradient flow approximations break down.</li>
     </ul>
-    <p>To understand this, we'll first cover traditional analyses of neural network learning, which concern themselves with stability.</p>
+    <p>To understand this, we'll first cover traditional analyses of neural network learning, which concern themselves with stability.</p>-->
 
-    <p class="tutorial-note"><strong>Note:</strong> This tutorial lets you train neural networks directly. Although the phenomena we discuss is general and holds for many large realistic models, most examples are done with a fairly simple example task to ensure fast run-times. You'll be able to play around with the parameters and more complex tasks for yourself at the end!</p>
+    <p class="tutorial-note"><strong>Note:</strong> In this tutorial, you will train neural networks directly. Although the phenomena we discuss is general and holds for more complex models encountered in practice, our in-tutorial examples are done with a simple task to ensure fast run-times. You'll be able to play around with the parameters and more complex tasks for yourself at the end!</p>
 
     <!-- ==================== SECTION: Gradient Descent ==================== -->
 
     <h2>Gradient Descent &mdash; Quadratic Approximations</h2>
 
-    <p>Consider a model with initial parameters $w_0$ that are optimized via gradient descent, described by</p>
+    <p> First, we discuss traditional analyses of gradient descent. Under gradient descent, a model's initial parameters $w_0$ are updated according to</p>
 
     $$w_{i+1} = w_i - \eta \nabla L(w_i)$$
 
-    <p>where $\eta$ is a step size and $L(w_i)$ the loss of our model with parameters $w_i$. In the limit $\eta \rightarrow 0$, this becomes a continuous differential equation called <strong>gradient flow</strong>.</p>
+    <p>where $\eta$ is a step size (called the learning rate) and $L(w_i)$ the loss of our model with parameters $w_i$. In the limit $\eta \rightarrow 0$, this becomes a continuous differential equation called <strong>gradient flow</strong>, which is easier to analyze. (maybe some mentions of successes here?)</p>
 
-    <p>In practice, we use finite step sizes (called the learning rate). How does a finite learning rate affect our optimization?</p>
+    <p>This leads to the following question: How do <strong>nonzero learning rates</strong> affect our optimization dynamics?</p>
 
-    <p>As a toy model, consider a 1D quadratic loss</p>
+    <p>As an example, consider a 1D quadratic loss</p>
 
-    $$L(w) = \frac{1}{2}Sw^2$$
+    $$L(w_i) = \frac{1}{2}Sw_i^2$$
 
-    <p>which is minimized at $w = 0$. The update rule becomes</p>
+    <p>The update rule is</p>
 
     $$w_{i+1} = w_i - \eta S w_i \quad\longrightarrow\quad w_{n} = (1 - \eta S)^n w_0$$
 
-    <p>which converges to $0$ only when</p>
+    <p>which converges to the minima $w_i = 0$ only if</p>
 
     $$|1 - \eta S| < 1 \implies \eta < \frac{2}{S}$$
 
-    <p>Thus whenever the step size is too large (relative to the curvature of the quadratic) it becomes impossible to reach the minima. The two regimes are visualized below.</p>
-
     <figure class="tutorial-figure">
-      <img src="imgs/gd_quadratic.png" alt="Gradient descent on a 1D quadratic in the stable and unstable regimes" style="max-width: 67%;">
+      <img src="imgs/gd_quadratic.png" alt="..." style="max-width: 50%;">
+      <figcaption>Left: Gradient descent steadily approaches the minima of the quadratic. Right: If the step size is too large (relative to the curvature of the quadratic), the optimized parameter does not converge but instead oscillates and diverges.</figcaption>
     </figure>
 
-    <p>In the multi-dimensional case, the quadratic loss is</p>
+    <p>In higher dimensions, the quadratic loss is</p>
 
     $$L(w) = \frac{1}{2}w^\top A w$$
 
-    <p>where $A = \nabla^2 L$ is the Hessian of our loss function, a matrix from $\mathbb{R}^{p \times p}$ where $p$ is the number of parameters. The gradient is $\nabla f(\mathbf{x}) = A\mathbf{x}$ and the update rule becomes</p>
+    <p>where $A = \nabla^2 L$ is the Hessian, a $p \times p$ matrix where $p$ is the number of parameters. Since the gradient of this quadratic is $\nabla L(w) = Aw$, the update rule becomes</p>
 
     $$\mathbf{x}_{i+1} = (I - \eta A)\mathbf{x}_i$$
 
-    <p>where $A$ is a symmetric matrix. We can decompose the evolution of parameters along $A$'s eigenvectors $w_{i}^{k}$, where $0 \leq k < p$ denotes an eigenvector, yielding</p>
+    <p>Since $A$ is symmetric, we can decompose the parameter vector along its eigenvectors. Writing $w_i^k$ for the component along the $k$-th eigenvector (with eigenvalue $\lambda_k$), each component evolves independently:</p>
 
     $$w_{i+1}^{k} = (1 - \eta \lambda_{k})w_{i}^{k}$$
 
-    <p>Convergence requires that $|1 - \eta \lambda_k| < 1$ for all eigenvalues, so the binding constraint is the largest one:</p>
+    <p>This converges only when $|1 - \eta \lambda_k| < 1$, which must hold for every eigenvalue. The binding constraint comes from the largest:</p>
 
     $$\eta < \frac{2}{\lambda_{\max}(A)}$$
-
-    <p>We call $\lambda_{\max}(A)$ the <strong>sharpness</strong>, $S(w)$. If sharpness exceeds the critical threshold $2/\eta$, gradient descent diverges along this sharpest direction, and it is impossible to reach the minima of this quadratic.</p>
+    
+    <p>We call $\lambda_{\max}(A)$ the <strong>sharpness</strong>. If sharpness exceeds the critical threshold $2/\eta$, gradient descent diverges along the sharpest direction.</p>
 
     <figure class="tutorial-figure">
       <img src="imgs/2d_quadratic_optim.png" alt="Gradient descent on a 2D quadratic showing divergence along the sharpest eigenvector" style="max-width: 33%;">
