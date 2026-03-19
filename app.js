@@ -6,6 +6,7 @@ import { AppState } from './state.js';
 import { Simulation } from './simulation.js';
 import { LossChart, RightChart } from './visualization.js';
 import { TASKS, preloadMNIST } from './tasks.js';
+import { initTutorialWidgets } from './tutorial.js';
 
 console.log('MLP Trainer loaded');
 
@@ -659,6 +660,7 @@ function initialRender() {
   initModelControls();
   initTrainingControls();
   renderNetworkViz();
+  initTutorialWidgets();
 
   // Apply saved plot settings
   if (appState.logScale) {
@@ -680,7 +682,7 @@ function initialRender() {
 // Wait for MathJax if present, otherwise render immediately
 function waitForMathJax(attempts = 0) {
   if (window.MathJax && window.MathJax.typesetPromise && window.MathJax.startup && window.MathJax.startup.promise) {
-    window.MathJax.startup.promise.then(() => initialRender());
+    window.MathJax.startup.promise.then(() => initialRender()).catch(err => console.error('initialRender error:', err));
   } else if (attempts < 50) {
     setTimeout(() => waitForMathJax(attempts + 1), 50);
   } else {

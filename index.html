@@ -107,7 +107,7 @@
     <p>We call $\lambda_{\max}(A)$ the <strong>sharpness</strong>, $S(w)$. If sharpness exceeds the critical threshold $2/\eta$, gradient descent diverges along this sharpest direction, and it is impossible to reach the minima of this quadratic.</p>
 
     <figure class="tutorial-figure">
-      <img src="imgs/2d_quadratic_optim.png" alt="Gradient descent on a 2D quadratic showing divergence along the sharpest eigenvector">
+      <img src="imgs/2d_quadratic_optim.png" alt="Gradient descent on a 2D quadratic showing divergence along the sharpest eigenvector" style="max-width: 50%;">
     </figure>
 
     <!-- Local Stability (subsection) -->
@@ -121,7 +121,7 @@
     <p>In that case, why does gradient descent work in deep learning? One explanation is that gradient descent stays in 'stable regions' of weight space where $S(w) < 2 /\eta$. This is illustrated in the following cartoon.</p>
 
     <figure class="tutorial-figure">
-      <img src="imgs/stable_region.png" alt="Cartoon of gradient descent staying within the stable region of weight space">
+      <img src="imgs/stable_region.png" alt="Cartoon of gradient descent staying within the stable region of weight space" style="max-width: 75%;">
     </figure>
 
     <p>This is the picture often analyzed in traditional optimization theory ("local $L$-smoothness").</p>
@@ -134,9 +134,33 @@
 
     <p><strong>Experiments:</strong> As an example, we train an MLP with a single hidden layer to a Chebyshev Polynomial (dataset depicted on the left). Observe that the initial sharpness slowly begins to increase throughout training.</p>
 
-    <div class="todo-block">
-      <div class="todo-label">TODO &mdash; Implementation</div>
-      <p>Add code to plot the train and test losses here, as well as the buttons to start training. Unlike the main existing training playground, this part needs no ability to adjust any hyperparameters &mdash; simply use the default settings. Make it so that it stops after X epochs, which I'll specify more after thinking about the code.</p>
+    <!-- Widget 1: Progressive Sharpening demo (1000 steps, 1 eigenvalue) -->
+    <div class="tutorial-widget">
+      <div class="tutorial-widget-controls">
+        <button id="widget1-start" class="sim-button">start</button>
+        <button id="widget1-reset" class="sim-button">reset</button>
+        <span class="tutorial-widget-info">tanh, 1×100 hidden, lr = 0.3, Chebyshev degree 4, 20 points &mdash; runs for 2000 steps</span>
+      </div>
+      <div class="tutorial-widget-charts">
+        <div class="tutorial-widget-chart">
+          <div class="plot-box">
+            <div class="plot-content">
+              <canvas id="widget1-loss" class="plot-canvas"></canvas>
+              <div class="y-axis-label y-axis-label-loss">loss $\mathcal{L}$</div>
+              <div class="x-axis-label">step</div>
+            </div>
+          </div>
+        </div>
+        <div class="tutorial-widget-chart">
+          <div class="plot-box">
+            <div class="plot-content">
+              <canvas id="widget1-sharpness" class="plot-canvas"></canvas>
+              <div class="y-axis-label y-axis-label-norms">sharpness</div>
+              <div class="x-axis-label">step</div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <p>It occurs in a large variety of objectives, but why it appears so universally is an open theoretical question.</p>
@@ -144,7 +168,7 @@
     <p>An example of a 1D loss function that would progressively sharpen is a negative Gaussian:</p>
 
     <figure class="tutorial-figure">
-      <img src="imgs/neg_gaussian_sharpening.png" alt="Negative Gaussian loss function illustrating progressive sharpening">
+      <img src="imgs/neg_gaussian_sharpening.png" alt="Negative Gaussian loss function illustrating progressive sharpening" style="max-width: 50%;">
     </figure>
 
     <p>It is not clear this picture provides useful intuition for the general case with multiple dimensions, although you can plot slices of the loss landscape like this.</p>
@@ -155,9 +179,33 @@
 
     <p>Although progressive sharpening can stop before the critical threshold (particularly with very small learning rates), what generally happens is different.</p>
 
-    <div class="todo-block">
-      <div class="todo-label">TODO &mdash; Implementation</div>
-      <p>Repeat the earlier code for training the neural network. This code should continue where the previous code stopped, continuing for y more epochs.</p>
+    <!-- Widget 2: Edge of Stability demo (continues from widget 1, 3000 more steps) -->
+    <div class="tutorial-widget">
+      <div class="tutorial-widget-controls">
+        <button id="widget2-start" class="sim-button">start</button>
+        <button id="widget2-reset" class="sim-button">reset</button>
+        <span class="tutorial-widget-info">continues from above &mdash; runs for 3000 more steps (5000 total)</span>
+      </div>
+      <div class="tutorial-widget-charts">
+        <div class="tutorial-widget-chart">
+          <div class="plot-box">
+            <div class="plot-content">
+              <canvas id="widget2-loss" class="plot-canvas"></canvas>
+              <div class="y-axis-label y-axis-label-loss">loss $\mathcal{L}$</div>
+              <div class="x-axis-label">step</div>
+            </div>
+          </div>
+        </div>
+        <div class="tutorial-widget-chart">
+          <div class="plot-box">
+            <div class="plot-content">
+              <canvas id="widget2-sharpness" class="plot-canvas"></canvas>
+              <div class="y-axis-label y-axis-label-norms">sharpness</div>
+              <div class="x-axis-label">step</div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <p>As the quadratic approximation predicts, training is unstable beyond the critical threshold. This is apparent in the form of sudden spikes in the loss. However, the sharpness does not keep increasing but instead oscillates around this threshold. Meanwhile the training loss behaves non-monotonically over the short-term, while decreasing consistently over the long term.</p>
@@ -165,16 +213,40 @@
     <p>Contrary to our quadratic approximation, we find networks somehow self-stabilize at the critical sharpness threshold and are able to optimize at this boundary. We call these dynamics training at the <strong>edge of stability</strong> (EOS).</p>
 
     <figure class="tutorial-figure">
-      <img src="imgs/selfstable_region.png" alt="Cartoon of the self-stabilizing region at the edge of stability">
+      <img src="imgs/selfstable_region.png" alt="Cartoon of the self-stabilizing region at the edge of stability" style="max-width: 75%;">
     </figure>
 
     <p>It turns out this self-stabilizing phenomenon can be explained by looking at a third-order expansion of our training loss (beyond the second-order quadratic). There, we find that oscillations along the top Hessian eigenvector automatically trigger reduction of the top Hessian eigenvalue. Thus the sharpness naturally decreases, forcing the network back into the region of stability.</p>
 
     <p>These effects are also not limited to only the largest eigenvalue. Instead, multiple eigenvalues can reach the edge of stability, giving rise to much more chaotic training. This also shows quite clearly that the critical threshold predicted by our quadratic approximation has significant impacts on the training of neural networks.</p>
 
-    <div class="todo-block">
-      <div class="todo-label">TODO &mdash; Implementation</div>
-      <p>Repeat the earlier code for training the neural network. This code should start fresh with the same parameters, but now train multiple eigenvalues.</p>
+    <!-- Widget 3: Multiple Eigenvalues (no step limit, 3 eigenvalues) -->
+    <div class="tutorial-widget">
+      <div class="tutorial-widget-controls">
+        <button id="widget3-start" class="sim-button">start</button>
+        <button id="widget3-reset" class="sim-button">reset</button>
+        <span class="tutorial-widget-info">same settings, now tracking 3 eigenvalues &mdash; stop when ready</span>
+      </div>
+      <div class="tutorial-widget-charts">
+        <div class="tutorial-widget-chart">
+          <div class="plot-box">
+            <div class="plot-content">
+              <canvas id="widget3-loss" class="plot-canvas"></canvas>
+              <div class="y-axis-label y-axis-label-loss">loss $\mathcal{L}$</div>
+              <div class="x-axis-label">step</div>
+            </div>
+          </div>
+        </div>
+        <div class="tutorial-widget-chart">
+          <div class="plot-box">
+            <div class="plot-content">
+              <canvas id="widget3-sharpness" class="plot-canvas"></canvas>
+              <div class="y-axis-label y-axis-label-norms">sharpness</div>
+              <div class="x-axis-label">step</div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- ==================== SECTION: Relation to Gradient Flow ==================== -->
@@ -187,9 +259,82 @@
 
     <p>This formulation simplifies the analysis of many systems. It turns out this simplification breaks down largely at the edge of stability &mdash; up until hitting that threshold, different networks trained with different learning rates behave relatively similarly in their training loss and sharpness, and diverge only there.</p>
 
-    <div class="todo-block">
-      <div class="todo-label">TODO &mdash; Implementation</div>
-      <p>Repeat the earlier code for training the neural network. This code should plot the training dynamics of multiple networks with different learning rates (each being an integer multiple of each other, so it's simple to do the epochs). Here you only need one eigenvalue from each.</p>
+    <!-- Widget 4: Gradient Flow Comparison (3 learning rates, 3×2 grid) -->
+    <div class="tutorial-widget tutorial-widget-wide">
+      <div class="tutorial-widget-controls">
+        <button id="widget4-start" class="sim-button">start</button>
+        <button id="widget4-reset" class="sim-button">reset</button>
+        <span style="margin-left: 1em;">plot w.r.t.</span>
+        <span id="widget4-xaxis-toggle" class="plot-xaxis-toggle" style="margin-left: 0.3em;">
+          <a href="#" data-mode="step" class="active">step</a><a href="#" data-mode="teff">$\eta \cdot \mathrm{step}$</a>
+        </span>
+      </div>
+      <!-- Column headers -->
+      <div class="widget4-grid-labels">
+        <div class="widget4-col-label">$\eta = 0.3$</div>
+        <div class="widget4-col-label">$\eta = 0.15$</div>
+        <div class="widget4-col-label">$\eta = 0.075$</div>
+      </div>
+      <!-- Row 1: Loss charts -->
+      <div class="widget4-grid">
+        <div class="widget4-cell">
+          <div class="plot-box plot-box-sm">
+            <div class="plot-content">
+              <canvas id="widget4-loss-0" class="plot-canvas"></canvas>
+              <div class="y-axis-label y-axis-label-loss">loss</div>
+              <div class="x-axis-label">step</div>
+            </div>
+          </div>
+        </div>
+        <div class="widget4-cell">
+          <div class="plot-box plot-box-sm">
+            <div class="plot-content">
+              <canvas id="widget4-loss-1" class="plot-canvas"></canvas>
+              <div class="y-axis-label y-axis-label-loss">loss</div>
+              <div class="x-axis-label">step</div>
+            </div>
+          </div>
+        </div>
+        <div class="widget4-cell">
+          <div class="plot-box plot-box-sm">
+            <div class="plot-content">
+              <canvas id="widget4-loss-2" class="plot-canvas"></canvas>
+              <div class="y-axis-label y-axis-label-loss">loss</div>
+              <div class="x-axis-label">step</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Row 2: Sharpness charts -->
+      <div class="widget4-grid">
+        <div class="widget4-cell">
+          <div class="plot-box plot-box-sm">
+            <div class="plot-content">
+              <canvas id="widget4-sharpness-0" class="plot-canvas"></canvas>
+              <div class="y-axis-label y-axis-label-norms">sharpness</div>
+              <div class="x-axis-label">step</div>
+            </div>
+          </div>
+        </div>
+        <div class="widget4-cell">
+          <div class="plot-box plot-box-sm">
+            <div class="plot-content">
+              <canvas id="widget4-sharpness-1" class="plot-canvas"></canvas>
+              <div class="y-axis-label y-axis-label-norms">sharpness</div>
+              <div class="x-axis-label">step</div>
+            </div>
+          </div>
+        </div>
+        <div class="widget4-cell">
+          <div class="plot-box plot-box-sm">
+            <div class="plot-content">
+              <canvas id="widget4-sharpness-2" class="plot-canvas"></canvas>
+              <div class="y-axis-label y-axis-label-norms">sharpness</div>
+              <div class="x-axis-label">step</div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <p>One idea for describing the training dynamics of neural networks beyond this threshold is called central flow, based off analysis of the self-stabilizing phenomenon via the third-order Taylor expansion. We won't go into the details here.</p>

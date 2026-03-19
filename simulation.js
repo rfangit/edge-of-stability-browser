@@ -8,7 +8,7 @@ import { TASKS, generateDataset } from './tasks.js';
 import { lanczosTopEigenvalues } from './hessian.js';
 
 export class Simulation {
-  constructor() {
+  constructor(options = {}) {
     this.isRunning = false;
     this.iteration = 0;
     this.lossHistory = [];          // { iteration, loss }
@@ -23,11 +23,20 @@ export class Simulation {
     this.dataYArrays = null;        // cached array-wrapped train targets (for Hessian)
     this.animationFrameId = null;
 
+    // Optional: maximum steps before auto-stopping (null = unlimited)
+    this.maxSteps = options.maxSteps || null;
+
+    // Optional: DOM id for steps/sec display (null = skip display)
+    this.stepsPerSecId = options.stepsPerSecId !== undefined ? options.stepsPerSecId : 'stepsPerSec';
+
     // Callback for chart updates
     this.onFrameUpdate = null;
 
     // Callback when loss diverges
     this.onDiverge = null;
+
+    // Callback when maxSteps reached
+    this.onComplete = null;
 
     // Steps per second tracking
     this.stepCounts = [];
@@ -50,7 +59,7 @@ export class Simulation {
 
     // Hessian computation defaults
     this.hessianOptions = {
-      kEigs: 3,
+      kEigs: options.kEigs || 3,
       numIters: 20,
       maxIters: 100,
       tolRatio: 0.01
@@ -110,6 +119,50 @@ export class Simulation {
     this.eigenvalueHistory = [];
   }
 
+  /**
+   * Continue training from another simulation's final state.
+   * Deep-copies the model weights and prepends the prior histories.
+   * Must call captureParams first (can use same or different eta/batchSize).
+   */
+  continueFrom(otherSim) {
+    if (!this.params) throw new Error('No parameters captured. Call captureParams first.');
+    if (!otherSim.model) throw new Error('Source simulation has no trained model.');
+
+    const p = this.params;
+    const task = TASKS[p.taskKey];
+
+    // Generate dataset (same task)
+    this.dataset = generateDataset(p.taskKey, p.taskParams);
+    this.dataYArrays = this.dataset.y.map(y => Array.isArray(y) ? y : [y]);
+
+    // No test set for tutorial widgets
+    this.testDataset = null;
+    this.testYArrays = null;
+
+    // Deep-copy the source model's weights into a new MLP
+    const layerSizes = [task.inputDim, ...p.hiddenDims, task.outputDim];
+    this.model = new MLP(layerSizes, p.activation, p.modelSeed);
+    for (let l = 0; l < otherSim.model.numLayers; l++) {
+      for (let i = 0; i < otherSim.model.W[l].length; i++) {
+        for (let j = 0; j < otherSim.model.W[l][i].length; j++) {
+          this.model.W[l][i][j] = otherSim.model.W[l][i][j];
+        }
+      }
+      for (let i = 0; i < otherSim.model.b[l].length; i++) {
+        this.model.b[l][i] = otherSim.model.b[l][i];
+      }
+    }
+
+    // Create trainer with the copied model
+    this.trainer = new Trainer(this.model, p.eta, p.batchSize, this.dataset);
+
+    // Prepend the prior simulation's histories
+    this.iteration = otherSim.iteration;
+    this.lossHistory = [...otherSim.lossHistory];
+    this.testLossHistory = [...otherSim.testLossHistory];
+    this.eigenvalueHistory = [...otherSim.eigenvalueHistory];
+  }
+
   computeTestLoss() {
     if (!this.testDataset || !this.model) return 0;
     const testX = this.testDataset.x;
@@ -153,8 +206,10 @@ export class Simulation {
     this.stepCounts = [];
     this.totalSteps = 0;
     this.lastStepsPerSecUpdate = 0;
-    const spsEl = document.getElementById('stepsPerSec');
-    if (spsEl) spsEl.textContent = '—';
+    if (this.stepsPerSecId) {
+      const spsEl = document.getElementById(this.stepsPerSecId);
+      if (spsEl) spsEl.textContent = '—';
+    }
 
     this.isRunning = true;
     this.runLoop();
@@ -183,8 +238,10 @@ export class Simulation {
     this.stepCounts = [];
     this.totalSteps = 0;
     this.lastStepsPerSecUpdate = 0;
-    const spsEl = document.getElementById('stepsPerSec');
-    if (spsEl) spsEl.textContent = '—';
+    if (this.stepsPerSecId) {
+      const spsEl = document.getElementById(this.stepsPerSecId);
+      if (spsEl) spsEl.textContent = '—';
+    }
   }
 
   runLoop() {
@@ -234,6 +291,15 @@ export class Simulation {
 
       stepsThisFrame++;
       if (stepsThisFrame >= 1000) break;
+
+      // Check if we've reached maxSteps
+      if (this.maxSteps && this.iteration >= this.maxSteps) {
+        this.isRunning = false;
+        this.updateStepsPerSec(stepsThisFrame);
+        if (this.onFrameUpdate) this.onFrameUpdate();
+        if (this.onComplete) this.onComplete(this.iteration);
+        return;
+      }
     }
 
     this.updateStepsPerSec(stepsThisFrame);
@@ -257,8 +323,10 @@ export class Simulation {
     const [newestTime, newestSteps] = this.stepCounts[this.stepCounts.length - 1];
     const stepsPerSec = (newestSteps - oldestSteps) / ((newestTime - oldestTime) / 1000);
 
-    const spsEl = document.getElementById('stepsPerSec');
-    if (spsEl) spsEl.textContent = Math.round(stepsPerSec).toString();
+    if (this.stepsPerSecId) {
+      const spsEl = document.getElementById(this.stepsPerSecId);
+      if (spsEl) spsEl.textContent = Math.round(stepsPerSec).toString();
+    }
   }
 
   getState() {
