@@ -187,7 +187,6 @@ select {
   line-height: 1.75;
   margin-top: 1em;
   margin-bottom: 2em;
-  max-width: 800px;
 }
 
 .tutorial-content h2 {
@@ -285,17 +284,6 @@ select {
   background: #fafafa;
   border: 1px solid #e0e0e0;
   border-radius: 6px;
-  /* Break out of tutorial-content max-width */
-  max-width: none;
-  width: calc(100vw - 80px);
-  max-width: 1000px;
-  position: relative;
-  left: 50%;
-  transform: translateX(-50%);
-}
-
-.tutorial-widget-wide {
-  max-width: 1160px;
 }
 
 .tutorial-widget-controls {

@@ -85,7 +85,7 @@
     <p>Thus whenever the step size is too large (relative to the curvature of the quadratic) it becomes impossible to reach the minima. The two regimes are visualized below.</p>
 
     <figure class="tutorial-figure">
-      <img src="imgs/gd_quadratic.png" alt="Gradient descent on a 1D quadratic in the stable and unstable regimes">
+      <img src="imgs/gd_quadratic.png" alt="Gradient descent on a 1D quadratic in the stable and unstable regimes" style="max-width: 67%;">
     </figure>
 
     <p>In the multi-dimensional case, the quadratic loss is</p>
@@ -107,7 +107,7 @@
     <p>We call $\lambda_{\max}(A)$ the <strong>sharpness</strong>, $S(w)$. If sharpness exceeds the critical threshold $2/\eta$, gradient descent diverges along this sharpest direction, and it is impossible to reach the minima of this quadratic.</p>
 
     <figure class="tutorial-figure">
-      <img src="imgs/2d_quadratic_optim.png" alt="Gradient descent on a 2D quadratic showing divergence along the sharpest eigenvector" style="max-width: 50%;">
+      <img src="imgs/2d_quadratic_optim.png" alt="Gradient descent on a 2D quadratic showing divergence along the sharpest eigenvector" style="max-width: 33%;">
     </figure>
 
     <!-- Local Stability (subsection) -->
@@ -121,7 +121,7 @@
     <p>In that case, why does gradient descent work in deep learning? One explanation is that gradient descent stays in 'stable regions' of weight space where $S(w) < 2 /\eta$. This is illustrated in the following cartoon.</p>
 
     <figure class="tutorial-figure">
-      <img src="imgs/stable_region.png" alt="Cartoon of gradient descent staying within the stable region of weight space" style="max-width: 75%;">
+      <img src="imgs/stable_region.png" alt="Cartoon of gradient descent staying within the stable region of weight space" style="max-width: 50%;">
     </figure>
 
     <p>This is the picture often analyzed in traditional optimization theory ("local $L$-smoothness").</p>
@@ -168,7 +168,7 @@
     <p>An example of a 1D loss function that would progressively sharpen is a negative Gaussian:</p>
 
     <figure class="tutorial-figure">
-      <img src="imgs/neg_gaussian_sharpening.png" alt="Negative Gaussian loss function illustrating progressive sharpening" style="max-width: 50%;">
+      <img src="imgs/neg_gaussian_sharpening.png" alt="Negative Gaussian loss function illustrating progressive sharpening" style="max-width: 33%;">
     </figure>
 
     <p>It is not clear this picture provides useful intuition for the general case with multiple dimensions, although you can plot slices of the loss landscape like this.</p>
@@ -213,7 +213,7 @@
     <p>Contrary to our quadratic approximation, we find networks somehow self-stabilize at the critical sharpness threshold and are able to optimize at this boundary. We call these dynamics training at the <strong>edge of stability</strong> (EOS).</p>
 
     <figure class="tutorial-figure">
-      <img src="imgs/selfstable_region.png" alt="Cartoon of the self-stabilizing region at the edge of stability" style="max-width: 75%;">
+      <img src="imgs/selfstable_region.png" alt="Cartoon of the self-stabilizing region at the edge of stability" style="max-width: 50%;">
     </figure>
 
     <p>It turns out this self-stabilizing phenomenon can be explained by looking at a third-order expansion of our training loss (beyond the second-order quadratic). There, we find that oscillations along the top Hessian eigenvector automatically trigger reduction of the top Hessian eigenvalue. Thus the sharpness naturally decreases, forcing the network back into the region of stability.</p>
