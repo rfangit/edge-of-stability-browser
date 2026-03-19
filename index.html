@@ -118,32 +118,34 @@
 
     <h3>Local Stability</h3>
 
-    <p>Real deep learning objectives are not quadratics, but we can always take a quadratic Taylor approximation around our current weights. It's reasonable to assume gradient descent on this quadratic approximation would resemble the short-term dynamics on the real objective. In that case, if the sharpness of our quadratic approximation is too large, then gradient descent will oscillate and blow up along the top Hessian eigenvectors. This suggests gradient descent cannot function properly in regions of weight space where $S(w) > 2/ \eta$.</p>
+    <p>Real deep learning objectives are not quadratics, but we can always take a quadratic Taylor approximation around our current weights. If this approximation is reasonable, the stability condition $S(w) < 2/\eta$ should still apply locally — when the sharpness at the current weights exceeds $2/\eta$, we'd expect gradient descent to oscillate and diverge along the top Hessian eigenvector.</p>
+
+    <p>So why does gradient descent work in deep learning? One explanation from classical optimization theory is that gradient descent stays in "stable regions" of weight space - where $S(w) < 2/\eta$.</p>
+    <figure class="tutorial-figure">
+      <img src="imgs/stable_region.png" alt="Cartoon of gradient descent staying within the stable region of weight space" style="max-width: 50%;">
+      <figcaption>The classical picture: gradient descent stays within regions where the sharpness is below the critical threshold ("local $L$-smoothness").</figcaption>
+    </figure>
 
     <p class="tutorial-note"><strong>Note:</strong> This approximation is only guaranteed to be good when the step size is small and the higher order Taylor terms are small. So it's not actually clear why this should be a good proxy, and indeed, it's not a good proxy for ReLU, where there are probably many higher order Taylor terms.</p>
 
-    <p>In that case, why does gradient descent work in deep learning? One explanation is that gradient descent stays in 'stable regions' of weight space where $S(w) < 2 /\eta$. This is illustrated in the following cartoon.</p>
-
-    <figure class="tutorial-figure">
-      <img src="imgs/stable_region.png" alt="Cartoon of gradient descent staying within the stable region of weight space" style="max-width: 50%;">
-    </figure>
-
-    <p>This is the picture often analyzed in traditional optimization theory ("local $L$-smoothness").</p>
-
     <!-- ==================== SECTION: Progressive Sharpening ==================== -->
 
-    <h2>Progressive Sharpening</h2>
+    <h2> Edge of Stability and Progressive Sharpening</h2>
 
-    <p>In many real learning objectives, we find an interesting empirical trend called <strong>progressive sharpening</strong>, where sharpness tends to increase throughout training.</p>
-
-    <p><strong>Experiments:</strong> As an example, we train an MLP with a single hidden layer to a Chebyshev Polynomial (dataset depicted on the left). Observe that the initial sharpness slowly begins to increase throughout training.</p>
+    <p>However, in real loss functions we tend to observe the following two phenomena:</p>
+    <ul style="margin-left: 1.5em;">
+      <li><strong>Progressive Sharpening:</strong> When the sharpness is less than $2/\eta$, it tends to continually increase throughout training.</li>
+      <li><strong>Edge of Stability:</strong> When the sharpness rises above $2/\eta$, gradient descent becomes unstable as predicted by the quadratic approximation.</li>
+    </ul>
+  
+    <p><strong>Experiments:</strong> As an example, we train an MLP with a single hidden layer to a Chebyshev Polynomial (dataset depicted SOMEWHERE). Observe that the initial sharpness eventually increases to $2/\eta$, followed by instability.</p>
 
     <!-- Widget 1: Progressive Sharpening demo (1000 steps, 1 eigenvalue) -->
     <div class="tutorial-widget">
       <div class="tutorial-widget-controls">
         <button id="widget1-start" class="sim-button">start</button>
         <button id="widget1-reset" class="sim-button">reset</button>
-        <span class="tutorial-widget-info">tanh, 1×100 hidden, lr = 0.3, Chebyshev degree 4, 20 points &mdash; runs for 2000 steps</span>
+        <span class="tutorial-widget-info">tanh, 1×100 hidden, lr = 0.4, Chebyshev degree 4, 20 points &mdash; runs for 5000 steps</span>
       </div>
       <div class="tutorial-widget-charts">
         <div class="tutorial-widget-chart">
@@ -167,6 +169,19 @@
       </div>
     </div>
 
+    <p>The instability of training is apparent in the form of sudden spikes in the loss. However, the sharpness does not keep increasing but instead oscillates around this threshold. Meanwhile the training loss behaves non-monotonically over the short-term, while decreasing consistently over the long term.</p>
+
+    <p> This means that networks somehow self-stabilize at the critical sharpness threshold and are able to optimize at this boundary. We call these dynamics training at the <strong>edge of stability</strong> (EOS).</p>
+
+    <figure class="tutorial-figure">
+      <img src="imgs/selfstable_region.png" alt="Cartoon of the self-stabilizing region at the edge of stability" style="max-width: 50%;">
+    </figure>
+
+    <p>It turns out this self-stabilizing phenomenon can be explained by looking at a third-order expansion of our training loss (beyond the second-order quadratic). There, we find that oscillations along the top Hessian eigenvector automatically trigger reduction of the top Hessian eigenvalue. Thus the sharpness naturally decreases, forcing the network back into the region of stability.</p>
+
+    <p>These effects are also not limited to only the largest eigenvalue. Instead, multiple eigenvalues can reach the edge of stability, giving rise to much more chaotic training. This also shows quite clearly that the critical threshold predicted by our quadratic approximation has significant impacts on the training of neural networks.</p>
+
+    <h3>More On Progressive Sharpening</h3>
     <p>It occurs in a large variety of objectives, but why it appears so universally is an open theoretical question.</p>
 
     <p>An example of a 1D loss function that would progressively sharpen is a negative Gaussian:</p>
@@ -176,51 +191,7 @@
     </figure>
 
     <p>It is not clear this picture provides useful intuition for the general case with multiple dimensions, although you can plot slices of the loss landscape like this.</p>
-
-    <!-- ==================== SECTION: Edge of Stability ==================== -->
-
-    <h2>Edge of Stability</h2>
-
-    <p>Although progressive sharpening can stop before the critical threshold (particularly with very small learning rates), what generally happens is different.</p>
-
-    <!-- Widget 2: Edge of Stability demo (continues from widget 1, 3000 more steps) -->
-    <div class="tutorial-widget">
-      <div class="tutorial-widget-controls">
-        <button id="widget2-start" class="sim-button">start</button>
-        <button id="widget2-reset" class="sim-button">reset</button>
-        <span class="tutorial-widget-info">continues from above &mdash; runs for 3000 more steps (5000 total)</span>
-      </div>
-      <div class="tutorial-widget-charts">
-        <div class="tutorial-widget-chart">
-          <div class="plot-box">
-            <div class="plot-content">
-              <canvas id="widget2-loss" class="plot-canvas"></canvas>
-              <div class="y-axis-label y-axis-label-loss">loss $\mathcal{L}$</div>
-              <div class="x-axis-label">step</div>
-            </div>
-          </div>
-        </div>
-        <div class="tutorial-widget-chart">
-          <div class="plot-box">
-            <div class="plot-content">
-              <canvas id="widget2-sharpness" class="plot-canvas"></canvas>
-              <div class="y-axis-label y-axis-label-norms">sharpness</div>
-              <div class="x-axis-label">step</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <p>As the quadratic approximation predicts, training is unstable beyond the critical threshold. This is apparent in the form of sudden spikes in the loss. However, the sharpness does not keep increasing but instead oscillates around this threshold. Meanwhile the training loss behaves non-monotonically over the short-term, while decreasing consistently over the long term.</p>
-
-    <p>Contrary to our quadratic approximation, we find networks somehow self-stabilize at the critical sharpness threshold and are able to optimize at this boundary. We call these dynamics training at the <strong>edge of stability</strong> (EOS).</p>
-
-    <figure class="tutorial-figure">
-      <img src="imgs/selfstable_region.png" alt="Cartoon of the self-stabilizing region at the edge of stability" style="max-width: 50%;">
-    </figure>
-
-    <p>It turns out this self-stabilizing phenomenon can be explained by looking at a third-order expansion of our training loss (beyond the second-order quadratic). There, we find that oscillations along the top Hessian eigenvector automatically trigger reduction of the top Hessian eigenvalue. Thus the sharpness naturally decreases, forcing the network back into the region of stability.</p>
+    <h3>Eigenvalues</h3>
 
     <p>These effects are also not limited to only the largest eigenvalue. Instead, multiple eigenvalues can reach the edge of stability, giving rise to much more chaotic training. This also shows quite clearly that the critical threshold predicted by our quadratic approximation has significant impacts on the training of neural networks.</p>
 

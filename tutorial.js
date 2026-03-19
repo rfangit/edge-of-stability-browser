@@ -20,7 +20,7 @@ const CHEBYSHEV_DEFAULTS = {
 };
 
 // ============================================================================
-// WIDGET 1: Progressive Sharpening (1000 steps, 1 eigenvalue)
+// WIDGET 1: Progressive Sharpening + Edge of Stability (5000 steps, 1 eigenvalue)
 // ============================================================================
 
 function initWidget1() {
@@ -28,7 +28,8 @@ function initWidget1() {
   const resetBtn = document.getElementById('widget1-reset');
   if (!startBtn) return null; // widget not in DOM
 
-  const sim = new Simulation({ maxSteps: 2000, kEigs: 1, stepsPerSecId: null });
+  const widget1Eta = 0.4;
+  const sim = new Simulation({ maxSteps: 5000, kEigs: 1, stepsPerSecId: null });
   const lossChart = new LossChart('widget1-loss');
   const rightChart = new RightChart('widget1-sharpness');
 
@@ -52,85 +53,8 @@ function initWidget1() {
     if (!sim.isRunning) {
       if (!sim.model) {
         const d = CHEBYSHEV_DEFAULTS;
-        sim.captureParams(d.taskKey, d.taskParams, d.activation, d.hiddenDims, d.eta, d.batchSize, d.modelSeed);
+        sim.captureParams(d.taskKey, d.taskParams, d.activation, d.hiddenDims, widget1Eta, d.batchSize, d.modelSeed);
         lossChart.setInitialLoss(0.5);
-      }
-      sim.start();
-      startBtn.textContent = 'pause';
-    } else {
-      sim.pause();
-      startBtn.textContent = 'resume';
-    }
-  });
-
-  resetBtn.addEventListener('click', () => {
-    sim.reset();
-    lossChart.clear();
-    rightChart.clear();
-    startBtn.textContent = 'start';
-    startBtn.disabled = false;
-  });
-
-  return sim;
-}
-
-// ============================================================================
-// WIDGET 2: Edge of Stability (continues from widget 1, 3000 more steps)
-// ============================================================================
-
-function initWidget2(widget1Sim) {
-  const startBtn = document.getElementById('widget2-start');
-  const resetBtn = document.getElementById('widget2-reset');
-  if (!startBtn) return null;
-
-  // Total steps = 2000 (from widget1) + 3000 = 5000
-  const sim = new Simulation({ maxSteps: 5000, kEigs: 1, stepsPerSecId: null });
-  const lossChart = new LossChart('widget2-loss');
-  const rightChart = new RightChart('widget2-sharpness');
-
-  sim.onFrameUpdate = () => {
-    const state = sim.getState();
-    lossChart.update(state.lossHistory, state.testLossHistory, state.eta);
-    rightChart.update(state.eigenvalueHistory, state.eta);
-  };
-
-  sim.onComplete = () => {
-    startBtn.textContent = 'done';
-    startBtn.disabled = true;
-  };
-
-  sim.onDiverge = (iteration, loss) => {
-    startBtn.textContent = 'diverged';
-    startBtn.disabled = true;
-  };
-
-  function tryStart() {
-    if (!widget1Sim || !widget1Sim.model) {
-      startBtn.textContent = 'run widget above first';
-      startBtn.disabled = true;
-      return false;
-    }
-    if (widget1Sim.isRunning) {
-      startBtn.textContent = 'wait for widget above';
-      startBtn.disabled = true;
-      return false;
-    }
-    return true;
-  }
-
-  startBtn.addEventListener('click', () => {
-    if (!sim.isRunning) {
-      if (!sim.model) {
-        if (!tryStart()) return;
-        const d = CHEBYSHEV_DEFAULTS;
-        sim.captureParams(d.taskKey, d.taskParams, d.activation, d.hiddenDims, d.eta, d.batchSize, d.modelSeed);
-        sim.continueFrom(widget1Sim);
-
-        // Show the prepended history immediately
-        lossChart.setInitialLoss(0.5);
-        const state = sim.getState();
-        lossChart.update(state.lossHistory, state.testLossHistory, state.eta);
-        rightChart.update(state.eigenvalueHistory, state.eta);
       }
       sim.start();
       startBtn.textContent = 'pause';
@@ -211,8 +135,8 @@ function initWidget4() {
   const xAxisToggle = document.getElementById('widget4-xaxis-toggle');
   if (!startBtn) return null;
 
-  const baseEta = CHEBYSHEV_DEFAULTS.eta; // 0.25
-  const etas = [baseEta, baseEta * 0.5, baseEta * 0.25]; // 0.25, 0.125, 0.0625
+  const baseEta = CHEBYSHEV_DEFAULTS.eta; // 0.3
+  const etas = [baseEta, baseEta * 0.5, baseEta * 0.25]; // 0.3, 0.15, 0.075
   const baseSteps = 4000;
   const maxSteps = [baseSteps, baseSteps * 2, baseSteps * 4]; // 4000, 8000, 16000
 
@@ -319,7 +243,6 @@ function initWidget4() {
 
 export function initTutorialWidgets() {
   const w1 = initWidget1();
-  const w2 = initWidget2(w1);
   const w3 = initWidget3();
   const w4 = initWidget4();
 }
