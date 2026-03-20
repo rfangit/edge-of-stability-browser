@@ -183,7 +183,7 @@ export const TASKS = {
     inputDim: 1,
     outputDim: 1,
     generateDataset: generateChebyshev,
-    formula: '$$y = T_k(x) = \\cos(k \\arccos x)$$',
+    formula: '$$y = T_k(x) = \\cos(k \\arccos x)$$<div style="font-size: 12px; color: #999; margin-top: 4px;">$x_i$ equally spaced on $[-1, 1]$</div>',
 
     // Task-specific user-configurable parameters
     params: {
