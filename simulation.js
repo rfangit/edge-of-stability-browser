@@ -60,8 +60,8 @@ export class Simulation {
     // Hessian computation defaults
     this.hessianOptions = {
       kEigs: options.kEigs || 3,
-      numIters: 20,
-      maxIters: 100,
+      numIters: options.hessianNumIters || 20,
+      maxIters: options.hessianMaxIters || 100,
       tolRatio: 0.01
     };
   }

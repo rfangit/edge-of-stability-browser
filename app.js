@@ -7,6 +7,8 @@ import { Simulation } from './simulation.js';
 import { LossChart, RightChart } from './visualization.js';
 import { TASKS, preloadMNIST } from './tasks.js';
 import { initTutorialWidgets } from './tutorial.js';
+import { CHEBYSHEV_DEFAULTS, toAppStateFormat } from './defaults.js';
+import { SavedRunsManager } from './saved-runs.js';
 
 console.log('MLP Trainer loaded');
 
@@ -566,6 +568,50 @@ resetToDefaultsButton.addEventListener('click', () => {
 });
 
 // ============================================================================
+// SAVED RUNS
+// ============================================================================
+
+const savedRunsManager = new SavedRunsManager();
+
+const saveRunButton = document.getElementById('saveRunButton');
+saveRunButton.addEventListener('click', () => {
+  const state = simulation.getState();
+  if (!state.lossHistory || state.lossHistory.length === 0) return;
+
+  // Build params from current appState
+  const hiddenDims = appState.useSecondLayer
+    ? [appState.hiddenDim1, appState.hiddenDim2]
+    : [appState.hiddenDim1];
+
+  const params = {
+    task: appState.task,
+    taskParams: { ...appState.getCurrentTaskParams() },
+    activation: appState.activation,
+    hiddenDims: hiddenDims,
+    eta: appState.eta,
+    batchSize: appState.batchSize,
+    modelSeed: appState.modelSeed
+  };
+
+  const run = savedRunsManager.saveRun(
+    params,
+    state.lossHistory,
+    state.testLossHistory,
+    state.eigenvalueHistory
+  );
+
+  if (run) {
+    // Brief visual feedback
+    saveRunButton.textContent = '✓ saved!';
+    saveRunButton.style.color = '#557755';
+    setTimeout(() => {
+      saveRunButton.textContent = 'save run';
+      saveRunButton.style.color = '';
+    }, 1200);
+  }
+});
+
+// ============================================================================
 // PLOT CONTROLS
 // ============================================================================
 
@@ -587,6 +633,17 @@ logScaleXCheckbox.addEventListener('change', () => {
   lossChart.setLogScaleX(appState.logScaleX);
   rightChart.setLogScaleX(appState.logScaleX);
   appState.save();
+});
+
+// Clip sharpness y-axis (default: on)
+const clipSharpnessCheckbox = document.getElementById('clipSharpnessCheckbox');
+clipSharpnessCheckbox.addEventListener('change', () => {
+  rightChart.setClipSharpness(clipSharpnessCheckbox.checked);
+  // Force redraw if there's data
+  const state = simulation.getState();
+  if (state.eigenvalueHistory.length > 0) {
+    rightChart.update(state.eigenvalueHistory, state.eta);
+  }
 });
 
 // X-axis mode (step vs t_eff)
@@ -679,14 +736,106 @@ function initialRender() {
   }
 }
 
+// ============================================================================
+// PLAYGROUND PRESETS - clickable links from tutorial to configure playground
+// ============================================================================
+// Each preset is a partial config object. Only specified fields are changed.
+// Usage in HTML: <button class="preset-button" data-preset="preset-name">text</button>
+
+const _chebPreset = toAppStateFormat(CHEBYSHEV_DEFAULTS);
+
+const PRESETS = {
+  'chebyshev-tanh-default': {
+    ..._chebPreset,
+    activation: 'tanh',
+  },
+  'chebyshev-relu-default': {
+    ..._chebPreset,
+    activation: 'relu',
+  }
+};
+
+function applyPreset(presetNameOrObj) {
+  const preset = typeof presetNameOrObj === 'string'
+    ? PRESETS[presetNameOrObj]
+    : presetNameOrObj;
+  if (!preset) {
+    console.warn('Unknown preset:', presetNameOrObj);
+    return;
+  }
+
+  // Stop any running simulation
+  if (simulation.isRunning) {
+    simulation.pause();
+    startPauseButton.textContent = 'start';
+  }
+  simulation.reset();
+  lossChart.clear();
+  rightChart.clear();
+  const errorEl = document.getElementById('divergeError');
+  if (errorEl) errorEl.style.display = 'none';
+
+  // Apply task
+  if (preset.task !== undefined) {
+    appState.task = preset.task;
+    taskSelect.value = preset.task;
+  }
+
+  // Apply model params
+  if (preset.activation !== undefined) appState.activation = preset.activation;
+  if (preset.hiddenDim1 !== undefined) appState.hiddenDim1 = preset.hiddenDim1;
+  if (preset.useSecondLayer !== undefined) appState.useSecondLayer = preset.useSecondLayer;
+  if (preset.hiddenDim2 !== undefined) appState.hiddenDim2 = preset.hiddenDim2;
+  if (preset.eta !== undefined) appState.eta = preset.eta;
+  if (preset.batchSize !== undefined) appState.batchSize = preset.batchSize;
+  if (preset.modelSeed !== undefined) appState.modelSeed = preset.modelSeed;
+
+  // Apply task params
+  if (preset.taskParams) {
+    if (!appState.taskParams[appState.task]) appState.taskParams[appState.task] = {};
+    for (const [k, v] of Object.entries(preset.taskParams)) {
+      appState.taskParams[appState.task][k] = v;
+    }
+  }
+
+  appState.save();
+
+  // Re-render all UI
+  renderTaskParams();
+  initModelControls();
+  initTrainingControls();
+  renderNetworkViz();
+
+  // Scroll to playground
+  const playgroundEl = document.getElementById('resetToDefaultsButton');
+  if (playgroundEl) {
+    playgroundEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+}
+
+// Expose globally so HTML onclick or data-preset buttons can use it
+window.applyPreset = applyPreset;
+
+// Bind all preset buttons in the DOM
+function bindPresetButtons() {
+  document.querySelectorAll('[data-preset]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      applyPreset(btn.dataset.preset);
+    });
+  });
+}
+
 // Wait for MathJax if present, otherwise render immediately
 function waitForMathJax(attempts = 0) {
   if (window.MathJax && window.MathJax.typesetPromise && window.MathJax.startup && window.MathJax.startup.promise) {
-    window.MathJax.startup.promise.then(() => initialRender()).catch(err => console.error('initialRender error:', err));
+    window.MathJax.startup.promise.then(() => { initialRender(); bindPresetButtons(); savedRunsManager.bindLoadRunsButtons(); }).catch(err => console.error('initialRender error:', err));
   } else if (attempts < 50) {
     setTimeout(() => waitForMathJax(attempts + 1), 50);
   } else {
     initialRender();
+    bindPresetButtons();
+    savedRunsManager.bindLoadRunsButtons();
   }
 }
 

@@ -1,23 +1,27 @@
 // ============================================================================
 // APPLICATION STATE
 // ============================================================================
+
+import { CHEBYSHEV_DEFAULTS, TOY_MULTIDIM_DEFAULTS, toAppStateFormat } from './defaults.js';
+
 const STORAGE_KEY = 'mlp-trainer-state';
 
+const chebyshevAppState = toAppStateFormat(CHEBYSHEV_DEFAULTS);
+
 const DEFAULTS = {
-  // Defaults match Chebyshev recommended settings for edge of stability
-  task: 'chebyshev',
+  task: chebyshevAppState.task,
   taskParams: {
-    chebyshev: { degree: 4, nTrain: 20, useTestSet: false, nTest: 200 },
-    toyMultiDim: { nTrain: 200, noise: 0, seed: 0, useTestSet: false, nTest: 100 },
+    chebyshev: { ...CHEBYSHEV_DEFAULTS.taskParams, useTestSet: false, nTest: 200 },
+    toyMultiDim: { ...TOY_MULTIDIM_DEFAULTS.taskParams, useTestSet: false, nTest: 100 },
     mnist: { useTestSet: false, nTest: 100 }
   },
-  activation: 'tanh',
-  modelSeed: 0,
-  hiddenDim1: 100,
-  useSecondLayer: false,
-  hiddenDim2: 50,
-  eta: 0.5,
-  batchSize: 20,
+  activation: chebyshevAppState.activation,
+  modelSeed: chebyshevAppState.modelSeed,
+  hiddenDim1: chebyshevAppState.hiddenDim1,
+  useSecondLayer: chebyshevAppState.useSecondLayer,
+  hiddenDim2: chebyshevAppState.hiddenDim2,
+  eta: chebyshevAppState.eta,
+  batchSize: chebyshevAppState.batchSize,
   logScale: false,
   logScaleX: false,
   xAxisMode: 'step',

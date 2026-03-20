@@ -92,14 +92,15 @@
 
     $$w_{i+1}^{k} = (1 - \eta \lambda_{k})w_{i}^{k}$$
 
-    <p>This only converges when $|1 - \eta \lambda_k| < 1$, which must hold for every eigenvalue. The binding constraint comes from the largest:</p>
+    <p>This only converges when $|1 - \eta \lambda_k| < 1$, which must hold for every eigenvalue. Therefore gradient descent converges when</p>
 
     $$\eta < \frac{2}{\lambda_{\max}(A)}$$
     
-    <p>We call $\lambda_{\max}(A)$ the <strong>sharpness</strong>. If sharpness exceeds the critical threshold $2/\eta$, gradient descent diverges along the sharpest direction.</p>
+    <p>We call $\lambda_{\max}(A)$ the <strong>sharpness</strong>.</p>
 
     <figure class="tutorial-figure">
       <img src="imgs/2d_quadratic_optim.png" alt="Gradient descent on a 2D quadratic showing divergence along the sharpest eigenvector" style="max-width: 25%;">
+      <figcaption>NOTE: Make a new version of this figure.</figcaption>
     </figure>
 
     <!-- Local Stability (subsection) -->
@@ -111,7 +112,7 @@
     <p>So why does gradient descent work in deep learning? One explanation from classical optimization theory is that gradient descent stays in "stable regions" of weight space - where $S(w) < 2/\eta$.</p>
     <figure class="tutorial-figure">
       <img src="imgs/stable_region.png" alt="Cartoon of gradient descent staying within the stable region of weight space" style="max-width: 40%;">
-      <figcaption>The classical picture: gradient descent stays within regions where the sharpness is below the critical threshold ("local $L$-smoothness").</figcaption>
+      <figcaption>The classical picture: gradient descent stays within regions where the sharpness is below the critical threshold ("local $L$-smoothness"). NOTE: Make a new version of this figure.</figcaption>
     </figure>
      <!--
     <p class="tutorial-note"><strong>Personal Note:</strong> This approximation is only guaranteed to be good when the step size is small and the higher order Taylor terms are small. So it's not actually clear why this should be a good proxy, and indeed, it's not a good proxy for ReLU, where there are probably many higher order Taylor terms.</p>-->
@@ -128,12 +129,18 @@
   
     <p><strong>Experiments:</strong> As an example, we train an MLP with a single hidden layer to a Chebyshev Polynomial (dataset depicted SOMEWHERE). Observe that the initial sharpness eventually increases to $2/\eta$, followed by instability.</p>
 
-    <!-- Widget 1: Progressive Sharpening demo (1000 steps, 1 eigenvalue) -->
+    <!-- Widget 1: Progressive Sharpening + Edge of Stability
+         Task: Chebyshev degree 4, 20 points, full-batch
+         Model: tanh, 2 hidden layers (30 + 30), seed 0
+         LR: 0.15, max steps: 5000
+         Hessian: kEigs=1
+         Charts: train loss (no test, no EMA), sharpness (1 eigenvalue + 2/η)
+    -->
     <div class="tutorial-widget">
       <div class="tutorial-widget-controls">
         <button id="widget1-start" class="sim-button">start</button>
         <button id="widget1-reset" class="sim-button">reset</button>
-        <span class="tutorial-widget-info">tanh, 1×100 hidden, lr = 0.4, Chebyshev degree 4, 20 points &mdash; runs for 5000 steps</span>
+        <span id="widget1-info" class="tutorial-widget-info"></span>
       </div>
       <div class="tutorial-widget-charts">
         <div class="tutorial-widget-chart">
@@ -157,26 +164,35 @@
       </div>
     </div>
 
-    <p>The instability of training is manifests in the form of sudden spikes in the loss (in fact, one can prove that the loss has to go down for full-batch gradient descent if the loss function was smooth). However, at the edge of stability the sharpening behaviour appears to stop, with the sharpness instead oscillating around the critical threshold $2/\eta$. Furthermore, although the training loss is non-monotonic in the short term, there are signs of consistent progress over the long term.</p>
+    <p>The instability of training manifests in the form of sudden spikes in the loss (in fact, one can prove that the loss has to go down for full-batch gradient descent if the loss function was smooth). However, at the edge of stability the sharpening behaviour appears to stop, with the sharpness instead oscillating around the critical threshold $2/\eta$. Furthermore, although the training loss is non-monotonic in the short term, there are signs of consistent progress over the long term (more notable in more complicated tasks).</p>
       
     <p> This suggests networks self-stabilize at the critical sharpness threshold and are able to optimize at this boundary. We call these dynamics training at the <strong>edge of stability</strong> (EOS).</p>
 
     <figure class="tutorial-figure">
       <img src="imgs/selfstable_region.png" alt="Cartoon of the self-stabilizing region at the edge of stability" style="max-width: 50%;">
+      <figcaption>NOTE: Make a new version of this figure.</figcaption>
     </figure>
 
     <p class="tutorial-note"><strong>Open Question:</strong> Why do networks tend to sharpen during training? Although toy examples can be constructed without this behaviour, the trend appears often enough for realistic tasks to warrant investigation.</p>
 
-    <p>While we don't understand why networks tend to sharpen, we do understand the force that counteracts this tendency at the edge of stability. The third-order expansion of our training loss shows that oscillations along the top Hessian eigenvector automatically triggers a reduction of the top Hessian eigenvalue (colloquially, our model takes gradient dsteps to reduce the sharpness). The sharpness naturally decreases, forcing the network back into the region of stability.</p>
+    <p>While we don't understand why networks tend to sharpen, we do understand the force that counteracts this tendency at the edge of stability. The third-order expansion of our training loss shows that oscillations along the top Hessian eigenvector automatically trigger a reduction of the top Hessian eigenvalue (colloquially, this performs gradient descent not on the loss, but the sharpness). The sharpness naturally decreases, forcing the network back into the region of stability.</p>
 
     <p>These two effects also occur for other eigenvalues - they progressively sharpen, until they reach the threshold and self-stabilize. Multiple eigenvalues at this threshold results in extremely chaotic training curves, as you'll see in the next widget.</p>
+
+    <p>NOTE: Not all eigenvalues will reach the threshold. Our tasks are relatively simple and only one or two reach the threshold. Simplear problems have less eigenvalues, while harder problems have more (seemingly).</p>
       
-    <!-- Widget 2: Multiple Eigenvalues (no step limit, 3 eigenvalues) -->
+    <!-- Widget 2: Multiple Eigenvalues
+         Task: Chebyshev degree 4, 20 points, full-batch
+         Model: tanh, 2 hidden layers (30 + 30), seed 0
+         LR: 0.15, no step limit
+         Hessian: kEigs=3
+         Charts: train loss (no test, no EMA), sharpness (3 eigenvalues + 2/η)
+    -->
     <div class="tutorial-widget">
       <div class="tutorial-widget-controls">
         <button id="widget3-start" class="sim-button">start</button>
         <button id="widget3-reset" class="sim-button">reset</button>
-        <span class="tutorial-widget-info">same settings, now tracking 3 eigenvalues &mdash; stop when ready</span>
+        <span id="widget3-info" class="tutorial-widget-info"></span>
       </div>
       <div class="tutorial-widget-charts">
         <div class="tutorial-widget-chart">
@@ -200,7 +216,7 @@
       </div>
     </div>
 
-    <p>Given the edge of stability is dependent on the learning rate, should we choose sufficiently small learning rates (or dynamically chosen, based off hessian eigenvalues) to avoid the edge? The answer appears to be no, as this is sub-optimal for compute efficiency. Many realistic tasks require incredibly small learning rates to avoid the edge of stability, and are best optimized at the edge of stability instead. Thus an understanding of edge of stability dynamics appears essential to improving performance.</p>
+    <p>Should we just choose learning rates small enough to avoid the edge of stability? The answer appears to be no, as this is sub-optimal for compute efficiency. For many realistic tasks, the required learning rate would be impractically small. In practice, networks train most efficiently right at the edge — making it important to understand these dynamics rather than avoid them.</p>
 
     <!-- ==================== SECTION: Relation to Gradient Flow ==================== -->
 
@@ -210,10 +226,18 @@
 
     $$\frac{d w(t)}{dt} = - \nabla L(w(t))$$
 
-    <p>This formulation simplifies the analysis of many systems. Returning to our original question, this simplification breaks down mostly at the edge of stability &mdash; up until hitting that threshold, different networks trained with different learning rates behave relatively similarly in their training loss and sharpness, and diverge only there. You'll see this in the next experiment, where we train the same problem with three different learning rates.</p>
+    <p>This formulation simplifies the analysis of many systems. It turns out to break down mostly at the edge of stability &mdash; up until hitting that threshold, different networks trained with different learning rates behave relatively similarly in their training loss and sharpness, and diverge only there. You'll see this in the next experiment, where we train the same problem with three different learning rates.</p>
 
-    <!-- Widget 3: Gradient Flow Comparison (3 learning rates, 3×2 grid) -->
-    <div class="tutorial-widget tutorial-widget-wide">
+    <!-- Widget 3: Gradient Flow Comparison
+         3 learning rates on shared charts (MultiSimulation with proportional stepping)
+         Task: Chebyshev degree 4, 20 points, full-batch
+         Model: tanh, 2 hidden layers (30 + 30), seed 0
+         LRs: 0.15, 0.1, 0.075 (dashed, dotted, solid)
+         StepsPerTick: 4, 6, 8 (so step×η ≈ equal per tick)
+         Max steps: 13333 / 20000 / 26667 (so total step×η ≈ 2000 each)
+         Hessian: kEigs=1, numIters=10, maxIters=30 (fast, top-1 only)
+    -->
+    <div class="tutorial-widget">
       <div class="tutorial-widget-controls">
         <button id="widget4-start" class="sim-button">start</button>
         <button id="widget4-reset" class="sim-button">reset</button>
@@ -221,67 +245,22 @@
         <span id="widget4-xaxis-toggle" class="plot-xaxis-toggle" style="margin-left: 0.3em;">
           <a href="#" data-mode="step" class="active">step</a><a href="#" data-mode="teff">$\eta \cdot \mathrm{step}$</a>
         </span>
+        <span id="widget4-info" class="tutorial-widget-info"></span>
       </div>
-      <!-- Column headers -->
-      <div class="widget4-grid-labels">
-        <div class="widget4-col-label">$\eta = 0.3$</div>
-        <div class="widget4-col-label">$\eta = 0.15$</div>
-        <div class="widget4-col-label">$\eta = 0.075$</div>
-      </div>
-      <!-- Row 1: Loss charts -->
-      <div class="widget4-grid">
-        <div class="widget4-cell">
-          <div class="plot-box plot-box-sm">
+      <div class="tutorial-widget-charts">
+        <div class="tutorial-widget-chart">
+          <div class="plot-box">
             <div class="plot-content">
-              <canvas id="widget4-loss-0" class="plot-canvas"></canvas>
-              <div class="y-axis-label y-axis-label-loss">loss</div>
+              <canvas id="widget4-loss" class="plot-canvas"></canvas>
+              <div class="y-axis-label y-axis-label-loss">loss $\mathcal{L}$</div>
               <div class="x-axis-label">step</div>
             </div>
           </div>
         </div>
-        <div class="widget4-cell">
-          <div class="plot-box plot-box-sm">
+        <div class="tutorial-widget-chart">
+          <div class="plot-box">
             <div class="plot-content">
-              <canvas id="widget4-loss-1" class="plot-canvas"></canvas>
-              <div class="y-axis-label y-axis-label-loss">loss</div>
-              <div class="x-axis-label">step</div>
-            </div>
-          </div>
-        </div>
-        <div class="widget4-cell">
-          <div class="plot-box plot-box-sm">
-            <div class="plot-content">
-              <canvas id="widget4-loss-2" class="plot-canvas"></canvas>
-              <div class="y-axis-label y-axis-label-loss">loss</div>
-              <div class="x-axis-label">step</div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <!-- Row 2: Sharpness charts -->
-      <div class="widget4-grid">
-        <div class="widget4-cell">
-          <div class="plot-box plot-box-sm">
-            <div class="plot-content">
-              <canvas id="widget4-sharpness-0" class="plot-canvas"></canvas>
-              <div class="y-axis-label y-axis-label-norms">sharpness</div>
-              <div class="x-axis-label">step</div>
-            </div>
-          </div>
-        </div>
-        <div class="widget4-cell">
-          <div class="plot-box plot-box-sm">
-            <div class="plot-content">
-              <canvas id="widget4-sharpness-1" class="plot-canvas"></canvas>
-              <div class="y-axis-label y-axis-label-norms">sharpness</div>
-              <div class="x-axis-label">step</div>
-            </div>
-          </div>
-        </div>
-        <div class="widget4-cell">
-          <div class="plot-box plot-box-sm">
-            <div class="plot-content">
-              <canvas id="widget4-sharpness-2" class="plot-canvas"></canvas>
+              <canvas id="widget4-sharpness" class="plot-canvas"></canvas>
               <div class="y-axis-label y-axis-label-norms">sharpness</div>
               <div class="x-axis-label">step</div>
             </div>
@@ -290,7 +269,7 @@
       </div>
     </div>
 
-    <p>How can we describe the training dynamics of neural networks beyond this threshold? One idea, related to earlier work explaining self-stabilization via the third-order Taylor expansion is called central flow. The idea is that you can time-average out the oscillations in the training dynamics. This leads to an equation where progressive sharpening and self-stabilizing terms cancel to lead to a simple description of average dynamics. For the curious reader, we refer them to this blog post.</p>
+    <p>How can we describe the training dynamics of neural networks beyond this threshold? One approach, called central flow, builds on the third-order Taylor analysis of self-stabilization. The idea is that you can time-average out the oscillations in the training dynamics. This leads to an equation where progressive sharpening and self-stabilizing terms cancel to lead to a simple description of average dynamics. The curious reader can check this blog post for more details.</p>
 
     <!-- ==================== SECTION: Observations ==================== -->
 
@@ -306,11 +285,15 @@
       
     <h3>Activation Function</h3>
 
-    Throughout this tutorial, we've focused on tanh networks even though ReLU networks are more common in practice. This choice is because ReLU networks seem to have more intense oscillations, with a critical threshold a little lower than the predicted $2/\eta$. A plausible explanation is the non-smoothness of ReLU, making the local dynamics predicted by a quadratic approximation less accurate.
+    <p>Throughout this tutorial, we've focused on tanh networks even though ReLU networks are more common in practice. This choice is because ReLU networks seem to have more intense oscillations, with a critical threshold a little lower than the predicted $2/\eta$. A plausible explanation is the non-smoothness of ReLU, making the local dynamics predicted by a quadratic approximation less accurate.</p>
 
-    Aside from this, it has unclear effects on initial sharpness and the rate of progressive sharpening. We include here networks where switching to ReLU increases the initial sharpness, but also cases where it decreases. (NEED TO ACTUALLY FIND THESE EXAMPLES)
+    <p>Aside from this, it has unclear effects on initial sharpness and the rate of progressive sharpening. We include here networks where switching to ReLU increases the initial sharpness, but also cases where it decreases. (NEED TO ACTUALLY FIND THESE EXAMPLES)</p>
 
-    Note that deep linear networks can also exhibit the edge of stability.
+    <p>Note that deep linear networks can also exhibit the edge of stability.</p>
+
+    <div class="preset-buttons">
+      <button class="load-runs-button" data-load-runs="runs/activation_fn/run_1.json,runs/activation_fn/run_2.json">Chebyshev default, ReLU vs tanh</button>
+    </div>
 
     <p class="tutorial-note"><strong>Open Question:</strong> Can we prove the critical threshold for ReLU is somewhat lower? Eg, maybe an argument related to Jensen's inequality, since it's a convex function?</p>
 
@@ -463,9 +446,8 @@
           <div style="margin-top: 6px;">$$\mathcal{L} = \frac{1}{2N}\sum_{i=1}^{N}\left\|\hat{f}(\mathbf{x}_i) - \mathbf{y}_i\right\|^2$$</div>
         </div>
         <div style="text-align: center; flex: 1;">
-          <div style="font-size: 15px; margin-bottom: 4px; color: #666;">initialization</div>
-          <div style="margin-top: 6px;">$$W_{ij}^{(\ell)} \sim \mathcal{N}\!\left(0,\, \frac{g^2}{n_{\ell-1} + n_\ell}\right)$$</div>
-          <div style="font-size: 12px; margin-top: 4px; color: #999;">$g = 1$ (tanh), $g = \sqrt{2}$ (ReLU)</div>
+          <div style="font-size: 15px; margin-bottom: 4px; color: #666;">initialization (muP)</div>
+          <div style="margin-top: 6px;">$$W_{ij}^{(\ell)} \sim \mathcal{N}\!\left(0,\, \frac{1}{n_{\ell-1}}\right)$$</div>
         </div>
       </div>
     </div>
@@ -479,6 +461,7 @@
     <div style="display: flex; gap: 1em; align-items: center; margin-bottom: 2em;">
       <button id="startPauseButton" class="sim-button">start</button>
       <button id="resetButton" class="sim-button">reset</button>
+      <button id="saveRunButton" class="sim-button">save run</button>
     </div>
 
     <!-- Plots -->
@@ -513,6 +496,10 @@
         <input type="checkbox" id="logScaleCheckbox">
         logscale y-axes
       </label>
+      <label style="margin-right: 20px;">
+        <input type="checkbox" id="clipSharpnessCheckbox" checked>
+        clip sharpness (3× threshold)
+      </label>
       <span style="margin-right: 0.5em;">plot w.r.t.</span>
       <span class="plot-xaxis-toggle">
         <a href="#" id="step-link" class="active">step</a><a href="#" id="teff-link">$\eta \cdot \mathrm{step}$</a>
@@ -528,6 +515,46 @@
     <div style="margin-top: 1.5em; text-align: center; color: #666; font-size: 14px;">
       <label>steps/sec:</label>
       <span id="stepsPerSec" style="font-weight: bold;">—</span>
+    </div>
+  </div>
+
+  <!-- Saved Runs -->
+  <div style="margin-bottom: 2em;">
+    <button id="toggleSavedRuns" class="sim-button" style="width: 100%;">show saved runs (<span id="savedRunCount">0</span>)</button>
+    <div id="savedRunsPanel" style="display: none; margin-top: 1em;">
+      <!-- Saved runs controls -->
+      <div style="margin-bottom: 0.8em;">
+        <label style="font-size: 13px;">
+          <input type="checkbox" id="savedRunsClipSharpness" checked>
+          clip sharpness (3× threshold)
+        </label>
+      </div>
+      <!-- Overlay charts -->
+      <div class="plots-container" style="margin-bottom: 1em;">
+        <div class="plot-wrapper">
+          <div class="plot-box">
+            <div class="plot-content">
+              <canvas id="savedLossChart" class="plot-canvas"></canvas>
+              <div class="y-axis-label y-axis-label-loss">loss $\mathcal{L}$</div>
+              <div class="x-axis-label">step</div>
+            </div>
+          </div>
+        </div>
+        <div class="plot-wrapper">
+          <div class="plot-box">
+            <div class="plot-content">
+              <canvas id="savedSharpnessChart" class="plot-canvas"></canvas>
+              <div class="y-axis-label y-axis-label-norms">sharpness</div>
+              <div class="x-axis-label">step</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Run list -->
+      <div id="savedRunList"></div>
+      <div style="margin-top: 0.8em; text-align: right;">
+        <button id="clearSavedRuns" class="sim-button" style="font-size: 12px; color: #999;">clear all</button>
+      </div>
     </div>
   </div>
 

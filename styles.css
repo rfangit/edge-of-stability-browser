@@ -360,3 +360,57 @@ select {
 .plot-box-sm .y-axis-label-loss { left: -22px; }
 .plot-box-sm .y-axis-label-norms { left: -30px; }
 
+/* Preset buttons — links from tutorial to playground */
+.preset-buttons {
+  display: flex;
+  gap: 0.6em;
+  flex-wrap: wrap;
+  margin: 1em 0;
+}
+
+.preset-button {
+  font-size: 13px;
+  padding: 5px 14px;
+  background: #f0f4ff;
+  border: 1px solid #b0c0e0;
+  border-radius: 4px;
+  color: #4466aa;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.preset-button:hover {
+  background: #dde6f8;
+  border-color: #8899cc;
+}
+
+.preset-button:active {
+  background: #ccd8f0;
+}
+
+/* Load runs buttons — load saved experiments from files */
+.load-runs-button {
+  font-size: 13px;
+  padding: 5px 14px;
+  background: #f0f8f0;
+  border: 1px solid #a0c8a0;
+  border-radius: 4px;
+  color: #447744;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.load-runs-button:hover {
+  background: #ddf0dd;
+  border-color: #88aa88;
+}
+
+.load-runs-button:active {
+  background: #ccf0cc;
+}
+
+.load-runs-button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+

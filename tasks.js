@@ -9,6 +9,8 @@
 // x[i] is always an array (even for 1D inputs: [0.5]).
 // y[i] is a scalar for regression tasks, or an array for multi-output (MNIST).
 
+import { CHEBYSHEV_DEFAULTS, TOY_MULTIDIM_DEFAULTS, MNIST_DEFAULTS, toAppStateFormat, describeDefaults } from './defaults.js';
+
 // ============================================================================
 // CHEBYSHEV POLYNOMIAL
 // ============================================================================
@@ -214,13 +216,9 @@ export const TASKS = {
 
     // Recommended settings for observing edge of stability
     recommended: {
-      description: 'tanh activation, 1 hidden layer, 100 neurons, lr = 0.5, 20 training points, degree 4',
+      description: describeDefaults(CHEBYSHEV_DEFAULTS) + ', 20 training points, degree 4',
       values: {
-        activation: 'tanh',
-        hiddenDim1: 100,
-        useSecondLayer: false,
-        eta: 0.5,
-        taskParams: { degree: 4, nTrain: 20 }
+        ...toAppStateFormat(CHEBYSHEV_DEFAULTS),
       }
     }
   },
@@ -268,14 +266,9 @@ export const TASKS = {
 
     // Recommended settings for observing edge of stability
     recommended: {
-      description: 'tanh activation, 2 hidden layers of 10 neurons, lr = 0.3, 200 training points, noise = 0',
+      description: describeDefaults(TOY_MULTIDIM_DEFAULTS) + ', 200 training points, noise = 0',
       values: {
-        activation: 'tanh',
-        hiddenDim1: 10,
-        useSecondLayer: true,
-        hiddenDim2: 10,
-        eta: 0.3,
-        taskParams: { nTrain: 200, noise: 0, seed: 0 }
+        ...toAppStateFormat(TOY_MULTIDIM_DEFAULTS),
       }
     }
   },
@@ -300,12 +293,9 @@ export const TASKS = {
     },
 
     recommended: {
-      description: 'tanh activation, 1 hidden layer, 30 neurons, lr = 0.5',
+      description: describeDefaults(MNIST_DEFAULTS),
       values: {
-        activation: 'tanh',
-        hiddenDim1: 30,
-        useSecondLayer: false,
-        eta: 0.5
+        ...toAppStateFormat(MNIST_DEFAULTS),
       }
     }
   }

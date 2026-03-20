@@ -1,8 +1,13 @@
 // ============================================================================
-// MODEL - Generic MLP with configurable activation and Xavier initialization
+// MODEL - Generic MLP with muP initialization
 // ============================================================================
 // Supports 1 or 2 hidden layers, any input/output dimension.
 // Activation can be 'tanh' or 'relu'.
+//
+// Initialization (muP-inspired):
+//   All layers: W_ij ~ N(0, 1 / fan_in)
+//   All biases: b_i = 0
+//
 // Usage:
 //   const net = new MLP([1, 100, 1]);                // tanh by default
 //   const net = new MLP([1, 100, 1], 'relu');         // ReLU activation
@@ -20,11 +25,8 @@ export class MLP {
   constructor(layerSizes, activation = 'tanh', seed = null) {
     this.layerSizes = layerSizes;
     this.numLayers = layerSizes.length - 1; // number of weight matrices
+    // Activation type stored for forward pass
     this.activation = activation;
-
-    // Xavier gain: 1.0 for tanh, sqrt(2) for relu
-    // (matches PyTorch's recommended gains)
-    this.gain = activation === 'relu' ? Math.sqrt(2) : 1.0;
 
     // Seeded PRNG for reproducible initialization
     if (seed !== null) {
@@ -41,7 +43,7 @@ export class MLP {
     for (let l = 0; l < this.numLayers; l++) {
       const fanIn = layerSizes[l];
       const fanOut = layerSizes[l + 1];
-      this.W.push(this.xavierNormal(fanOut, fanIn));
+      this.W.push(this._mupNormal(fanOut, fanIn));
       this.b.push(new Array(fanOut).fill(0));
     }
   }
@@ -57,17 +59,25 @@ export class MLP {
   }
 
   /**
-   * Xavier normal initialization: N(0, gain^2 / (fan_in + fan_out))
-   * gain = 1.0 for tanh, sqrt(2) for relu
+   * muP normal initialization: N(0, 1 / fan_in)
    */
-  xavierNormal(rows, cols) {
-    const std = this.gain * Math.sqrt(2.0 / (rows + cols));
+  _mupNormal(rows, cols) {
+    const std = Math.sqrt(1.0 / cols);
     const M = [];
     for (let i = 0; i < rows; i++) {
       M[i] = [];
       for (let j = 0; j < cols; j++) {
         M[i][j] = std * this.randn();
       }
+    }
+    return M;
+  }
+
+  /** Zero matrix */
+  _zeroMatrix(rows, cols) {
+    const M = [];
+    for (let i = 0; i < rows; i++) {
+      M[i] = new Array(cols).fill(0);
     }
     return M;
   }
