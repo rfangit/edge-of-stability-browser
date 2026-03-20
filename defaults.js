@@ -27,7 +27,7 @@ export const MNIST_DEFAULTS = {
   taskKey: 'mnist',
   activation: 'tanh',
   hiddenDims: [30],
-  eta: 0.8,
+  eta: 0.09,
   batchSize: 250,
   modelSeed: 0
 };

@@ -193,7 +193,7 @@ export const TASKS = {
         min: 2,
         max: 10,
         step: 1,
-        default: 4
+        default: 6
       },
       nTrain: {
         label: 'training points',
@@ -216,7 +216,7 @@ export const TASKS = {
 
     // Recommended settings for observing edge of stability
     recommended: {
-      description: describeDefaults(CHEBYSHEV_DEFAULTS) + ', 20 training points, degree 4',
+      description: describeDefaults(CHEBYSHEV_DEFAULTS) + `, ${CHEBYSHEV_DEFAULTS.taskParams.nTrain} training points, degree ${CHEBYSHEV_DEFAULTS.taskParams.degree}`,
       values: {
         ...toAppStateFormat(CHEBYSHEV_DEFAULTS),
       }
@@ -266,7 +266,7 @@ export const TASKS = {
 
     // Recommended settings for observing edge of stability
     recommended: {
-      description: describeDefaults(TOY_MULTIDIM_DEFAULTS) + ', 200 training points, noise = 0',
+      description: describeDefaults(TOY_MULTIDIM_DEFAULTS) + `, ${TOY_MULTIDIM_DEFAULTS.taskParams.nTrain} training points, noise = ${TOY_MULTIDIM_DEFAULTS.taskParams.noise}`,
       values: {
         ...toAppStateFormat(TOY_MULTIDIM_DEFAULTS),
       }
