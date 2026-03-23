@@ -8,67 +8,15 @@ import { MLP } from './model.js';
 import { Trainer } from './training.js';
 import { TASKS, generateDataset } from './tasks.js';
 import { lanczosTopEigenvalues } from './hessian.js';
-import { IncrementalCache } from './incremental-cache.js';
+import { formatTickLabel, baseChartOptions, CHART_FONT } from './chart-utils.js';
+
+// NOTE: IncrementalCache is not currently used here, but could be added
+// for downsampling if multi-simulation histories grow very large.
+// import { IncrementalCache } from './incremental-cache.js';
 
 // ============================================================================
 // CHART HELPERS
 // ============================================================================
-
-function formatTickLabel(value) {
-  if (value === 0) return '0';
-  const abs = Math.abs(value);
-  if (abs >= 1 && Math.abs(value - Math.round(value)) < 0.01) {
-    return String(Math.round(value));
-  }
-  return parseFloat(value.toPrecision(4)).toString();
-}
-
-const CHART_FONT = { family: 'Monaco, Consolas, "Courier New", monospace' };
-
-function baseChartOptions() {
-  return {
-    responsive: true,
-    maintainAspectRatio: false,
-    animation: false,
-    scales: {
-      x: {
-        type: 'linear',
-        min: 0,
-        ticks: {
-          maxRotation: 0,
-          font: { size: 14, ...CHART_FONT },
-          callback: function(value) {
-            // Only show integer ticks
-            if (value !== Math.floor(value)) return '';
-            return formatTickLabel(value);
-          }
-        }
-      },
-      y: {
-        type: 'linear',
-        beginAtZero: true,
-        ticks: {
-          font: { size: 14, ...CHART_FONT },
-          callback: function(value) { return formatTickLabel(value); }
-        }
-      }
-    },
-    plugins: {
-      legend: {
-        display: true,
-        position: 'top',
-        align: 'start',
-        onClick: () => {},
-        labels: {
-          usePointStyle: false,
-          boxWidth: 40,
-          boxHeight: 2,
-          font: { size: 12, ...CHART_FONT }
-        }
-      }
-    }
-  };
-}
 
 // Default colors for multi-series
 const SERIES_COLORS = [
@@ -115,6 +63,12 @@ export class MultiLossChart {
       data: { datasets },
       options: baseChartOptions()
     });
+
+    // Multi charts may have non-integer x values (η·step); only show integer ticks
+    this.chart.options.scales.x.ticks.callback = function(value) {
+      if (value !== Math.floor(value)) return '';
+      return formatTickLabel(value);
+    };
 
     // Custom legend with dash styles
     const chartRef = this;
@@ -245,6 +199,12 @@ export class MultiSharpnessChart {
       data: { datasets },
       options: baseChartOptions()
     });
+
+    // Multi charts may have non-integer x values (η·step); only show integer ticks
+    this.chart.options.scales.x.ticks.callback = function(value) {
+      if (value !== Math.floor(value)) return '';
+      return formatTickLabel(value);
+    };
 
     // Custom legend: only show eigenvalue curves + one threshold entry
     const chartRef = this;

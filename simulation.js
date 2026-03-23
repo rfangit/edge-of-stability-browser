@@ -70,6 +70,9 @@ export class Simulation {
     this.params = {
       taskKey, taskParams, activation, hiddenDims, eta, batchSize, modelSeed
     };
+    // Clear existing model so initialize() runs fresh with new params
+    this.model = null;
+    this.trainer = null;
   }
 
   initialize() {
@@ -105,11 +108,13 @@ export class Simulation {
       }
     }
 
-    // Build layer sizes
-    const layerSizes = [task.inputDim, ...p.hiddenDims, task.outputDim];
+    // Build layer sizes (use getDims for tasks with dynamic dimensions)
+    const dims = task.getDims ? task.getDims(p.taskParams) : { inputDim: task.inputDim, outputDim: task.outputDim };
+    const layerSizes = [dims.inputDim, ...p.hiddenDims, dims.outputDim];
 
     // Create model and trainer
-    this.model = new MLP(layerSizes, p.activation, p.modelSeed);
+    const initScale = task.getInitScale ? task.getInitScale(p.taskParams) : 1.0;
+    this.model = new MLP(layerSizes, p.activation, p.modelSeed, initScale);
     this.trainer = new Trainer(this.model, p.eta, p.batchSize, this.dataset);
 
     // Reset histories
@@ -121,8 +126,13 @@ export class Simulation {
 
   /**
    * Continue training from another simulation's final state.
+  /**
+   * Continue training from another simulation's final model state.
    * Deep-copies the model weights and prepends the prior histories.
    * Must call captureParams first (can use same or different eta/batchSize).
+   *
+   * Not currently used — was for a two-phase widget that has been removed.
+   * Kept for potential future use (e.g., learning rate schedule experiments).
    */
   continueFrom(otherSim) {
     if (!this.params) throw new Error('No parameters captured. Call captureParams first.');
@@ -140,8 +150,10 @@ export class Simulation {
     this.testYArrays = null;
 
     // Deep-copy the source model's weights into a new MLP
-    const layerSizes = [task.inputDim, ...p.hiddenDims, task.outputDim];
-    this.model = new MLP(layerSizes, p.activation, p.modelSeed);
+    const dims = task.getDims ? task.getDims(p.taskParams) : { inputDim: task.inputDim, outputDim: task.outputDim };
+    const layerSizes = [dims.inputDim, ...p.hiddenDims, dims.outputDim];
+    const initScale = task.getInitScale ? task.getInitScale(p.taskParams) : 1.0;
+    this.model = new MLP(layerSizes, p.activation, p.modelSeed, initScale);
     for (let l = 0; l < otherSim.model.numLayers; l++) {
       for (let i = 0; i < otherSim.model.W[l].length; i++) {
         for (let j = 0; j < otherSim.model.W[l][i].length; j++) {
@@ -175,7 +187,7 @@ export class Simulation {
       const yArr = this.testYArrays[i];
       for (let j = 0; j < outputDim; j++) {
         const err = yArr[j] - outArr[j];
-        total += 0.5 * err * err;
+        total += 0.5 * err * err / outputDim;
       }
     }
     return total / testX.length;

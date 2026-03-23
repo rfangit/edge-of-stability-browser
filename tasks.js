@@ -7,9 +7,9 @@
 //
 // The dataset is generated once when training starts, then passed to the Trainer.
 // x[i] is always an array (even for 1D inputs: [0.5]).
-// y[i] is a scalar for regression tasks, or an array for multi-output (MNIST).
+// y[i] is a scalar for regression tasks, or an array for multi-output (Fashion MNIST).
 
-import { CHEBYSHEV_DEFAULTS, TOY_MULTIDIM_DEFAULTS, MNIST_DEFAULTS, toAppStateFormat, describeDefaults } from './defaults.js';
+import { CHEBYSHEV_DEFAULTS, TOY_MULTIDIM_DEFAULTS, FASHION_MNIST_DEFAULTS, LINEAR_REGRESSION_DEFAULTS, toAppStateFormat, describeDefaults } from './defaults.js';
 
 // ============================================================================
 // CHEBYSHEV POLYNOMIAL
@@ -88,53 +88,46 @@ function generateToyMultiDim(params) {
 }
 
 // ============================================================================
-// MNIST SUBSET - loads from precomputed binary file
+// FASHION MNIST SUBSET - loads from precomputed binary file
 // ============================================================================
 
-// Cache for loaded MNIST data (loaded once, reused)
-let mnistCache = null;
-let mnistLoadPromise = null;
+// Cache for loaded Fashion MNIST data (loaded once, reused)
+let fashionMnistCache = null;
+let fashionMnistLoadPromise = null;
 
 /**
- * Load MNIST binary file and parse into { x: number[][], y: number[][] }.
+ * Load Fashion MNIST binary file and parse into { x: number[][], y: number[][] }.
  * File format:
  *   - 4 bytes: uint32 LE, number of images (N)
- *   - 4 bytes: uint32 LE, pixels per image (read from header)
+ *   - 4 bytes: uint32 LE, pixels per image (784 for 28×28)
  *   - N bytes: uint8 labels (0-9)
  *   - N*784 bytes: uint8 pixel data (0-255)
  *
  * Returns normalized pixels [0,1] and one-hot labels.
  */
-async function loadMNISTBinary(url = 'mnist_subset.bin') {
-  if (mnistCache) return mnistCache;
+async function loadFashionMNISTBinary(url = 'fashion_mnist_subset.bin') {
+  if (fashionMnistCache) return fashionMnistCache;
 
-  // Prevent multiple simultaneous fetches
-  if (mnistLoadPromise) return mnistLoadPromise;
+  if (fashionMnistLoadPromise) return fashionMnistLoadPromise;
 
-  mnistLoadPromise = (async () => {
+  fashionMnistLoadPromise = (async () => {
     const response = await fetch(url);
-    if (!response.ok) throw new Error(`Failed to load MNIST data: ${response.status}`);
+    if (!response.ok) throw new Error(`Failed to load Fashion MNIST data: ${response.status}`);
 
     const buffer = await response.arrayBuffer();
     const view = new DataView(buffer);
 
-    // Read header
-    const N = view.getUint32(0, true);       // little-endian
+    const N = view.getUint32(0, true);
     const dim = view.getUint32(4, true);
     const headerSize = 8;
 
-    // Read labels
     const labelsRaw = new Uint8Array(buffer, headerSize, N);
-
-    // Read pixel data
     const pixelsRaw = new Uint8Array(buffer, headerSize + N, N * dim);
 
-    // Convert to our format
     const x = [];
     const y = [];
 
     for (let i = 0; i < N; i++) {
-      // Pixels: uint8 [0,255] -> float [0,1]
       const pixel = new Array(dim);
       const offset = i * dim;
       for (let j = 0; j < dim; j++) {
@@ -142,35 +135,91 @@ async function loadMNISTBinary(url = 'mnist_subset.bin') {
       }
       x.push(pixel);
 
-      // Labels: integer -> one-hot
       const oneHot = new Array(10).fill(0);
       oneHot[labelsRaw[i]] = 1;
       y.push(oneHot);
     }
 
-    mnistCache = { x, y };
-    return mnistCache;
+    fashionMnistCache = { x, y };
+    return fashionMnistCache;
   })();
 
-  return mnistLoadPromise;
+  return fashionMnistLoadPromise;
 }
 
-function generateMNIST(params) {
-  // This is called synchronously by generateDataset, but MNIST data
-  // must be loaded async. We return the cached data if available,
-  // otherwise throw an error indicating data needs to be preloaded.
-  if (mnistCache) {
-    return { x: mnistCache.x, y: mnistCache.y };
+function generateFashionMNIST(params) {
+  if (fashionMnistCache) {
+    return { x: fashionMnistCache.x, y: fashionMnistCache.y };
   }
-  throw new Error('MNIST data not loaded yet. Call preloadMNIST() first.');
+  throw new Error('Fashion MNIST data not loaded yet. Call preloadFashionMNIST() first.');
 }
 
 /**
- * Preload MNIST data. Call this before starting an MNIST simulation.
- * Returns a promise that resolves when data is ready.
+ * Preload Fashion MNIST data. Call this before starting a Fashion MNIST simulation.
  */
-export async function preloadMNIST() {
-  return loadMNISTBinary();
+export async function preloadFashionMNIST() {
+  return loadFashionMNISTBinary();
+}
+
+// ============================================================================
+// LINEAR REGRESSION - y = W*x + noise, W* is a random Gaussian matrix
+// ============================================================================
+
+function generateLinearRegression(params) {
+  const { inputDim, outputDim, nTrain, noise, seed } = params;
+
+  function mulberry32(a) {
+    return function() {
+      a |= 0; a = a + 0x6D2B79F5 | 0;
+      let t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+
+  function seededRandn(rng) {
+    const u1 = rng();
+    const u2 = rng();
+    return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+  }
+
+  const rng = mulberry32(seed);
+
+  // Generate random target matrix W*: outputDim × inputDim
+  // Each entry ~ N(0, 1/inputDim) so output variance is O(1)
+  const Wstar = [];
+  for (let i = 0; i < outputDim; i++) {
+    Wstar[i] = [];
+    for (let j = 0; j < inputDim; j++) {
+      Wstar[i][j] = seededRandn(rng) / Math.sqrt(inputDim);
+    }
+  }
+
+  const x = [];
+  const y = [];
+
+  for (let n = 0; n < nTrain; n++) {
+    // x ~ N(0, I_k)
+    const xi = [];
+    for (let j = 0; j < inputDim; j++) {
+      xi.push(seededRandn(rng));
+    }
+
+    // y = W* x + noise
+    const yi = [];
+    for (let i = 0; i < outputDim; i++) {
+      let sum = 0;
+      for (let j = 0; j < inputDim; j++) {
+        sum += Wstar[i][j] * xi[j];
+      }
+      yi.push(sum + noise * seededRandn(rng));
+    }
+
+    x.push(xi);
+    y.push(outputDim === 1 ? yi[0] : yi);
+  }
+
+  return { x, y };
 }
 
 // ============================================================================
@@ -273,12 +322,12 @@ export const TASKS = {
     }
   },
 
-  mnist: {
-    label: 'MNIST Subset (14×14)',
-    inputDim: 196,
+  fashionMnist: {
+    label: 'Fashion MNIST (28×28)',
+    inputDim: 784,
     outputDim: 10,
-    generateDataset: generateMNIST,
-    formula: '$$\\mathbf{y} = \\mathrm{onehot}(\\text{digit}),\\; \\mathbf{x} \\in \\mathbb{R}^{196}$$<div style="font-size: 12px; color: #999; margin-top: 4px;">14×14 downsampled, 25 images per digit, 250 total</div>',
+    generateDataset: generateFashionMNIST,
+    formula: '$$\\mathbf{y} = \\mathrm{onehot}(\\text{class}),\\; \\mathbf{x} \\in \\mathbb{R}^{784}$$<div style="font-size: 12px; color: #999; margin-top: 4px;">28×28, 25 images per class, 250 total</div>',
     requiresPreload: true,
 
     params: {
@@ -293,9 +342,93 @@ export const TASKS = {
     },
 
     recommended: {
-      description: describeDefaults(MNIST_DEFAULTS),
+      description: describeDefaults(FASHION_MNIST_DEFAULTS),
       values: {
-        ...toAppStateFormat(MNIST_DEFAULTS),
+        ...toAppStateFormat(FASHION_MNIST_DEFAULTS),
+      }
+    }
+  },
+
+  linearRegression: {
+    label: 'Linear Regression',
+    // Dynamic dimensions — read from taskParams
+    get inputDim() { return LINEAR_REGRESSION_DEFAULTS.taskParams.inputDim; },
+    get outputDim() { return LINEAR_REGRESSION_DEFAULTS.taskParams.outputDim; },
+    // getDims returns actual dims from current params (called by simulation/app)
+    getDims(taskParams) {
+      return {
+        inputDim: taskParams.inputDim || 5,
+        outputDim: taskParams.outputDim || 3
+      };
+    },
+    getInitScale(taskParams) {
+      return taskParams.initScale !== undefined ? taskParams.initScale : 0.01;
+    },
+    generateDataset: generateLinearRegression,
+    formula: '$$\\mathbf{y} = W^\\star \\mathbf{x} + \\varepsilon$$<div style="font-size: 12px; color: #999; margin-top: 4px;">$\\mathbf{x} \\sim \\mathcal{N}(\\mathbf{0}, I_k),\\; W^\\star_{ij} \\sim \\mathcal{N}(0, 1/k),\\; \\varepsilon \\sim \\mathcal{N}(0, \\sigma^2)$</div>',
+
+    params: {
+      inputDim: {
+        label: 'input dim k',
+        type: 'slider',
+        min: 1,
+        max: 20,
+        step: 1,
+        default: 5
+      },
+      outputDim: {
+        label: 'output dim m',
+        type: 'slider',
+        min: 1,
+        max: 20,
+        step: 1,
+        default: 3
+      },
+      nTrain: {
+        label: 'training points',
+        type: 'slider',
+        min: 10,
+        max: 500,
+        step: 10,
+        default: 100
+      },
+      noise: {
+        label: 'noise σ',
+        type: 'slider',
+        min: 0,
+        max: 0.5,
+        step: 0.01,
+        default: 0
+      },
+      initScale: {
+        label: 'weight init scale ε',
+        type: 'slider',
+        min: 0.0001,
+        max: 1,
+        step: 0.0001,
+        default: 0.01
+      },
+      seed: {
+        label: 'random seed',
+        type: 'slider',
+        min: 0,
+        max: 100,
+        step: 1,
+        default: 0
+      }
+    },
+
+    hiddenDimRange: { min: 5, max: 200, default: 20 },
+
+    defaults: {
+      eta: 0.01,
+      batchSize: 100
+    },
+
+    recommended: {
+      description: describeDefaults(LINEAR_REGRESSION_DEFAULTS) + `, ${LINEAR_REGRESSION_DEFAULTS.taskParams.inputDim}→${LINEAR_REGRESSION_DEFAULTS.taskParams.outputDim}, ${LINEAR_REGRESSION_DEFAULTS.taskParams.nTrain} points, noise = ${LINEAR_REGRESSION_DEFAULTS.taskParams.noise}, weight init ε = ${LINEAR_REGRESSION_DEFAULTS.taskParams.initScale}`,
+      values: {
+        ...toAppStateFormat(LINEAR_REGRESSION_DEFAULTS),
       }
     }
   }

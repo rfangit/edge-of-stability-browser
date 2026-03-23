@@ -2,7 +2,7 @@
 // MODEL - Generic MLP with muP initialization
 // ============================================================================
 // Supports 1 or 2 hidden layers, any input/output dimension.
-// Activation can be 'tanh' or 'relu'.
+// Activation can be 'tanh', 'relu', or 'linear'.
 //
 // Initialization (muP-inspired):
 //   All layers: W_ij ~ N(0, 1 / fan_in)
@@ -22,11 +22,12 @@ export class MLP {
    *   Middle elements are hidden layer widths.
    * @param {string} activation - 'tanh' (default) or 'relu'
    */
-  constructor(layerSizes, activation = 'tanh', seed = null) {
+  constructor(layerSizes, activation = 'tanh', seed = null, initScale = 1.0) {
     this.layerSizes = layerSizes;
     this.numLayers = layerSizes.length - 1; // number of weight matrices
     // Activation type stored for forward pass
     this.activation = activation;
+    this.initScale = initScale;
 
     // Seeded PRNG for reproducible initialization
     if (seed !== null) {
@@ -62,7 +63,7 @@ export class MLP {
    * muP normal initialization: N(0, 1 / fan_in)
    */
   _mupNormal(rows, cols) {
-    const std = Math.sqrt(1.0 / cols);
+    const std = this.initScale * Math.sqrt(1.0 / cols);
     const M = [];
     for (let i = 0; i < rows; i++) {
       M[i] = [];
@@ -73,7 +74,10 @@ export class MLP {
     return M;
   }
 
-  /** Zero matrix */
+  /**
+   * Zero matrix. Not currently used — was part of muP output-layer-zero init.
+   * Kept for potential future use (e.g., zero-init experiments).
+   */
   _zeroMatrix(rows, cols) {
     const M = [];
     for (let i = 0; i < rows; i++) {
@@ -125,15 +129,19 @@ export class MLP {
 
       // Apply activation on hidden layers, linear on output layer
       if (l < this.numLayers - 1) {
-        a = new Array(rows);
-        if (this.activation === 'relu') {
-          for (let i = 0; i < rows; i++) {
-            a[i] = z[i] > 0 ? z[i] : 0;
-          }
+        if (this.activation === 'linear') {
+          a = z; // no activation — deep linear network
         } else {
-          // tanh (default)
-          for (let i = 0; i < rows; i++) {
-            a[i] = Math.tanh(z[i]);
+          a = new Array(rows);
+          if (this.activation === 'relu') {
+            for (let i = 0; i < rows; i++) {
+              a[i] = z[i] > 0 ? z[i] : 0;
+            }
+          } else {
+            // tanh (default)
+            for (let i = 0; i < rows; i++) {
+              a[i] = Math.tanh(z[i]);
+            }
           }
         }
       } else {

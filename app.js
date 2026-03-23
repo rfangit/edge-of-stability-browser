@@ -5,10 +5,11 @@
 import { AppState } from './state.js';
 import { Simulation } from './simulation.js';
 import { LossChart, RightChart } from './visualization.js';
-import { TASKS, preloadMNIST } from './tasks.js';
+import { TASKS, preloadFashionMNIST } from './tasks.js';
 import { initTutorialWidgets } from './tutorial.js';
 import { CHEBYSHEV_DEFAULTS, toAppStateFormat } from './defaults.js';
 import { SavedRunsManager } from './saved-runs.js';
+import { HeroPlot } from './hero-plot.js';
 
 console.log('MLP Trainer loaded');
 
@@ -402,8 +403,9 @@ function renderNetworkViz() {
   svg.innerHTML = '';
 
   const task = TASKS[appState.task];
-  const inputDim = task.inputDim;
-  const outputDim = task.outputDim;
+  const taskDims = task.getDims ? task.getDims(appState.getCurrentTaskParams()) : { inputDim: task.inputDim, outputDim: task.outputDim };
+  const inputDim = taskDims.inputDim;
+  const outputDim = taskDims.outputDim;
   const h1 = appState.hiddenDim1;
   const h2 = appState.useSecondLayer ? appState.hiddenDim2 : null;
 
@@ -513,12 +515,12 @@ startPauseButton.addEventListener('click', async () => {
     const errorEl = document.getElementById('divergeError');
     if (errorEl) errorEl.style.display = 'none';
 
-    // If task requires async preload (MNIST), do it first
+    // If task requires async preload (Fashion MNIST), do it first
     if (task.requiresPreload) {
       startPauseButton.textContent = 'loading data...';
       startPauseButton.disabled = true;
       try {
-        await preloadMNIST();
+        await preloadFashionMNIST();
       } catch (e) {
         console.error('Failed to preload data:', e);
         startPauseButton.textContent = 'start';
@@ -577,20 +579,18 @@ const saveRunButton = document.getElementById('saveRunButton');
 saveRunButton.addEventListener('click', () => {
   const state = simulation.getState();
   if (!state.lossHistory || state.lossHistory.length === 0) return;
+  if (!simulation.params) return;
 
-  // Build params from current appState
-  const hiddenDims = appState.useSecondLayer
-    ? [appState.hiddenDim1, appState.hiddenDim2]
-    : [appState.hiddenDim1];
-
+  // Use the params the simulation was actually started with, not current UI state
+  const sp = simulation.params;
   const params = {
-    task: appState.task,
-    taskParams: { ...appState.getCurrentTaskParams() },
-    activation: appState.activation,
-    hiddenDims: hiddenDims,
-    eta: appState.eta,
-    batchSize: appState.batchSize,
-    modelSeed: appState.modelSeed
+    task: sp.taskKey,
+    taskParams: { ...sp.taskParams },
+    activation: sp.activation,
+    hiddenDims: [...sp.hiddenDims],
+    eta: sp.eta,
+    batchSize: sp.batchSize,
+    modelSeed: sp.modelSeed
   };
 
   const run = savedRunsManager.saveRun(
@@ -718,6 +718,16 @@ function initialRender() {
   initTrainingControls();
   renderNetworkViz();
   initTutorialWidgets();
+
+  // Animated title plot (non-blocking — loads data async)
+  const heroPlot = new HeroPlot({
+    dataUrl: 'runs/title_plot/run.json',
+    lossCanvasId: 'heroLossChart',
+    sharpCanvasId: 'heroSharpnessChart',
+    revealDuration: 10,
+    pauseDuration: 3
+  });
+  heroPlot.init();
 
   // Apply saved plot settings
   if (appState.logScale) {

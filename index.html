@@ -47,31 +47,53 @@
 
   <div class="tutorial-content">
 
-    <p>LARGE GRAPH GOES HERE!</p>
+    <!-- Hero plot: animated reveal of a pre-computed training run -->
+    <div class="tutorial-widget" id="heroPlotContainer">
+      <div class="tutorial-widget-charts">
+        <div class="tutorial-widget-chart">
+          <div class="plot-box">
+            <div class="plot-content">
+              <canvas id="heroLossChart" class="plot-canvas"></canvas>
+              <div class="y-axis-label y-axis-label-loss">loss $\mathcal{L}$</div>
+              <div class="x-axis-label">step</div>
+            </div>
+          </div>
+        </div>
+        <div class="tutorial-widget-chart">
+          <div class="plot-box">
+            <div class="plot-content">
+              <canvas id="heroSharpnessChart" class="plot-canvas"></canvas>
+              <div class="y-axis-label y-axis-label-norms">sharpness</div>
+              <div class="x-axis-label">step</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <p>The dynamics of optimization in deep learning typically operate in a complex regime termed the edge of stability (visualized above for MODEL + TASK), which cannot be described by traditional analyses of optimization. In this tutorial, we'll see:</p>
     <ul>
-      <li>what breaks down in the traditional analysis</li>
+      <li>when traditional analysis breaks down</li>
       <li>what progress we've made towards understanding</li>
       <li>what open questions remain</li>
     </ul>
     <p>To help learning, you'll be training your own neural networks directly in the tutorial, and can play around with the parameters and more complex tasks for yourself at the end!</p>
 
-    <p class="tutorial-note"><strong>Note:</strong> The tutorial will work mainly with a simple task to ensure fast-run times. However, the phenomena we discuss here is general and appears to hold for more complex models encountered in practice. We'll include evidence of this in the form of graphs, and <strong>reasonably</strong> complex tasks at the end.</p>
+    <p class="tutorial-note"><strong>Note:</strong> The tutorial will work mainly with a simple task to ensure fast-run times. However, the phenomena we discuss here is general and appears to hold for more complex models encountered in practice. We'll include evidence of this in the form of graphs, and complex (but slow) tasks at the end.</p>
 
     <!-- ==================== SECTION: Gradient Descent ==================== -->
 
     <h2>Gradient Descent &mdash; Quadratic Approximations</h2>
 
-    <p> First, we'll discuss a traditional analysis of gradient descent. Under gradient descent, a model's initial parameters $w_0$ are updated according to</p>
+    <p> First, a traditional analysis of gradient descent. Under gradient descent, a model's initial parameters $w_0$ are updated according to</p>
 
     $$w_{i+1} = w_i - \eta \nabla L(w_i)$$
 
-    <p>where $\eta$ is a step size (called the learning rate) and $L(w_i)$ the loss of our model with parameters $w_i$. In the limit $\eta \rightarrow 0$, this becomes a continuous differential equation called <strong>gradient flow</strong>, which is easier to analyze.</p>
+    <p>where $\eta$ is a step size (called the learning rate) and $L(w_i)$ is the loss of our model with parameters $w_i$. In the limit $\eta \rightarrow 0$, this becomes a continuous differential equation called <strong>gradient flow</strong>, which is easier to analyze.</p>
 
     <p>This leads to the following question: How do <strong>nonzero learning rates</strong> affect our optimization dynamics?</p>
 
-    <p>As an example, consider a 1D quadratic loss $L(w_i) = \frac{1}{2}Sw_i^2$. This yields the following update rule: </p>
+    <p>To answer this, consider a 1D quadratic loss $L(w_i) = \frac{1}{2}Sw_i^2$. This yields the following update rule: </p>
 
     $$w_{i+1} = w_i - \eta S w_i \implies  w_{n} = (1 - \eta S)^n w_0$$
 
@@ -84,7 +106,7 @@
       <figcaption>Left: For small enough step sizes (relative to the curvature of the quadratic) gradient descent steadily approaches the minima of the quadratic. Right: If the step size is too large, the optimized parameter does not converge but instead oscillates and diverges.</figcaption>
     </figure>
 
-    <p>In higher dimensions, the quadratic loss is $L(w) = \frac{1}{2}w^\top A w$, where $A = \nabla^2 L$ is the Hessian, a $p \times p$ matrix where $p$ is the number of parameters. Since the gradient of this quadratic is $\nabla L(w) = Aw$, the update rule becomes</p>
+    <p>In higher dimensions, the quadratic loss is $L(w) = \frac{1}{2}w^\top A w$, where $A = \nabla^2 L$ is the Hessian, a $p \times p$ matrix ($p$ is the number of parameters). Since the gradient of this quadratic is $\nabla L(w) = Aw$, the update rule becomes</p>
 
     $$w_{i+1} = (I - \eta A)w_i$$
 
@@ -100,7 +122,6 @@
 
     <figure class="tutorial-figure">
       <img src="imgs/2d_quadratic_optim.png" alt="Gradient descent on a 2D quadratic showing divergence along the sharpest eigenvector" style="max-width: 25%;">
-      <figcaption>NOTE: Make a new version of this figure.</figcaption>
     </figure>
 
     <!-- Local Stability (subsection) -->
@@ -112,7 +133,7 @@
     <p>So why does gradient descent work in deep learning? One explanation from classical optimization theory is that gradient descent stays in "stable regions" of weight space - where $S(w) < 2/\eta$.</p>
     <figure class="tutorial-figure">
       <img src="imgs/stable_region.png" alt="Cartoon of gradient descent staying within the stable region of weight space" style="max-width: 40%;">
-      <figcaption>The classical picture: gradient descent stays within regions where the sharpness is below the critical threshold ("local $L$-smoothness"). NOTE: Make a new version of this figure.</figcaption>
+      <figcaption>The classical picture: gradient descent stays within regions where the sharpness is below the critical threshold ("local $L$-smoothness").</figcaption>
     </figure>
      <!--
     <p class="tutorial-note"><strong>Personal Note:</strong> This approximation is only guaranteed to be good when the step size is small and the higher order Taylor terms are small. So it's not actually clear why this should be a good proxy, and indeed, it's not a good proxy for ReLU, where there are probably many higher order Taylor terms.</p>-->
@@ -127,9 +148,12 @@
       <li><strong>Edge of Stability:</strong> When sharpness rises above $2/\eta$, gradient descent becomes unstable as predicted by the quadratic approximation.</li>
     </ul>
   
-    <p><strong>Experiments:</strong> As an example, we train an MLP with a single hidden layer to a Chebyshev Polynomial (dataset depicted SOMEWHERE). Observe that the initial sharpness eventually increases to $2/\eta$, followed by instability.</p>
 
-    <!-- Widget 1: Progressive Sharpening + Edge of Stability
+
+
+    <p><strong>Experiments:</strong> As an example, we train an MLP with two hidden layers on a Chebyshev polynomial target (given by $y = \cos(k \arccos x)$ - a function that oscillates more in the region [-1, 1] for large $k$). Observe that the initial sharpness eventually increases to $2/\eta$, followed by instability.</p>
+
+    <!-- Base Experiment: Progressive Sharpening + Edge of Stability
          Task: Chebyshev degree 4, 20 points, full-batch
          Model: tanh, 2 hidden layers (30 + 30), seed 0
          LR: 0.15, max steps: 5000
@@ -138,15 +162,15 @@
     -->
     <div class="tutorial-widget">
       <div class="tutorial-widget-controls">
-        <button id="widget1-start" class="sim-button">start</button>
-        <button id="widget1-reset" class="sim-button">reset</button>
-        <span id="widget1-info" class="tutorial-widget-info"></span>
+        <button id="base-experiment-start" class="sim-button">start</button>
+        <button id="base-experiment-reset" class="sim-button">reset</button>
+        <span id="base-experiment-info" class="tutorial-widget-info"></span>
       </div>
       <div class="tutorial-widget-charts">
         <div class="tutorial-widget-chart">
           <div class="plot-box">
             <div class="plot-content">
-              <canvas id="widget1-loss" class="plot-canvas"></canvas>
+              <canvas id="base-experiment-loss" class="plot-canvas"></canvas>
               <div class="y-axis-label y-axis-label-loss">loss $\mathcal{L}$</div>
               <div class="x-axis-label">step</div>
             </div>
@@ -155,7 +179,7 @@
         <div class="tutorial-widget-chart">
           <div class="plot-box">
             <div class="plot-content">
-              <canvas id="widget1-sharpness" class="plot-canvas"></canvas>
+              <canvas id="base-experiment-sharpness" class="plot-canvas"></canvas>
               <div class="y-axis-label y-axis-label-norms">sharpness</div>
               <div class="x-axis-label">step</div>
             </div>
@@ -164,24 +188,21 @@
       </div>
     </div>
 
-    <p>The instability of training manifests in the form of sudden spikes in the loss (in fact, one can prove that the loss has to go down for full-batch gradient descent if the loss function was smooth). However, at the edge of stability the sharpening behaviour appears to stop, with the sharpness instead oscillating around the critical threshold $2/\eta$. Furthermore, although the training loss is non-monotonic in the short term, there are signs of consistent progress over the long term (more notable in more complicated tasks).</p>
+    <p>The instability of training results in sudden spikes in the loss (one can prove that the loss has to go down for full-batch gradient descent if the loss function was smooth). However, at the edge of stability the sharpening behaviour appears to stop, with sharpness instead oscillating around the critical threshold $2/\eta$. Furthermore, although the training loss is non-monotonic in the short term, there are signs of consistent progress over the long term.</p>
       
-    <p> This suggests networks self-stabilize at the critical sharpness threshold and are able to optimize at this boundary. We call these dynamics training at the <strong>edge of stability</strong> (EOS).</p>
+    <p> This suggests networks self-stabilize<sup><a href="#ref-damian2022">[2]</a></sup> at the critical sharpness threshold and are able to optimize at this boundary. We call these dynamics training at the <strong>edge of stability</strong> (EOS).<sup><a href="#ref-cohen2021">[1]</a></sup></p>
 
     <figure class="tutorial-figure">
       <img src="imgs/selfstable_region.png" alt="Cartoon of the self-stabilizing region at the edge of stability" style="max-width: 50%;">
-      <figcaption>NOTE: Make a new version of this figure.</figcaption>
     </figure>
 
     <p class="tutorial-note"><strong>Open Question:</strong> Why do networks tend to sharpen during training? Although toy examples can be constructed without this behaviour, the trend appears often enough for realistic tasks to warrant investigation.</p>
 
-    <p>While we don't understand why networks tend to sharpen, we do understand the force that counteracts this tendency at the edge of stability. The third-order expansion of our training loss shows that oscillations along the top Hessian eigenvector automatically trigger a reduction of the top Hessian eigenvalue (colloquially, this performs gradient descent not on the loss, but the sharpness). The sharpness naturally decreases, forcing the network back into the region of stability.</p>
+    <p>While we don't understand why networks tend to sharpen, we do understand the force that counteracts this tendency at the edge of stability. The third-order expansion of our training loss shows that oscillations along the top Hessian eigenvector automatically trigger a reduction of the top Hessian eigenvalue<sup><a href="#ref-damian2022">[2]</a></sup> (colloquially, this performs gradient descent not on the loss, but the sharpness). The sharpness naturally decreases, forcing the network back into the region of stability.</p>
 
     <p>These two effects also occur for other eigenvalues - they progressively sharpen, until they reach the threshold and self-stabilize. Multiple eigenvalues at this threshold results in extremely chaotic training curves, as you'll see in the next widget.</p>
-
-    <p>NOTE: Not all eigenvalues will reach the threshold. Our tasks are relatively simple and only one or two reach the threshold. Simplear problems have less eigenvalues, while harder problems have more (seemingly).</p>
       
-    <!-- Widget 2: Multiple Eigenvalues
+    <!-- Multi Eigenvalues:
          Task: Chebyshev degree 4, 20 points, full-batch
          Model: tanh, 2 hidden layers (30 + 30), seed 0
          LR: 0.15, no step limit
@@ -190,15 +211,15 @@
     -->
     <div class="tutorial-widget">
       <div class="tutorial-widget-controls">
-        <button id="widget3-start" class="sim-button">start</button>
-        <button id="widget3-reset" class="sim-button">reset</button>
-        <span id="widget3-info" class="tutorial-widget-info"></span>
+        <button id="multi-eigenvalues-start" class="sim-button">start</button>
+        <button id="multi-eigenvalues-reset" class="sim-button">reset</button>
+        <span id="multi-eigenvalues-info" class="tutorial-widget-info"></span>
       </div>
       <div class="tutorial-widget-charts">
         <div class="tutorial-widget-chart">
           <div class="plot-box">
             <div class="plot-content">
-              <canvas id="widget3-loss" class="plot-canvas"></canvas>
+              <canvas id="multi-eigenvalues-loss" class="plot-canvas"></canvas>
               <div class="y-axis-label y-axis-label-loss">loss $\mathcal{L}$</div>
               <div class="x-axis-label">step</div>
             </div>
@@ -207,7 +228,7 @@
         <div class="tutorial-widget-chart">
           <div class="plot-box">
             <div class="plot-content">
-              <canvas id="widget3-sharpness" class="plot-canvas"></canvas>
+              <canvas id="multi-eigenvalues-sharpness" class="plot-canvas"></canvas>
               <div class="y-axis-label y-axis-label-norms">sharpness</div>
               <div class="x-axis-label">step</div>
             </div>
@@ -216,7 +237,7 @@
       </div>
     </div>
 
-    <p>Should we just choose learning rates small enough to avoid the edge of stability? The answer appears to be no, as this is sub-optimal for compute efficiency. For many realistic tasks, the required learning rate would be impractically small. In practice, networks train most efficiently right at the edge — making it important to understand these dynamics rather than avoid them.</p>
+    <p>Should we choose learning rates small enough to avoid the edge of stability? The answer seems to be no, as for many realistic tasks the required learning rate would be impractically small and is thus sub-optimal for compute efficiency. In practice, networks train most efficiently right at the edge — making it important to understand these dynamics rather than avoid them.</p>
 
     <!-- ==================== SECTION: Relation to Gradient Flow ==================== -->
 
@@ -228,7 +249,7 @@
 
     <p>This formulation simplifies the analysis of many systems. It turns out to break down mostly at the edge of stability &mdash; up until hitting that threshold, different networks trained with different learning rates behave relatively similarly in their training loss and sharpness, and diverge only there. You'll see this in the next experiment, where we train the same problem with three different learning rates.</p>
 
-    <!-- Widget 3: Gradient Flow Comparison
+    <!-- Gradient Flow Comparison:
          3 learning rates on shared charts (MultiSimulation with proportional stepping)
          Task: Chebyshev degree 4, 20 points, full-batch
          Model: tanh, 2 hidden layers (30 + 30), seed 0
@@ -239,19 +260,19 @@
     -->
     <div class="tutorial-widget">
       <div class="tutorial-widget-controls">
-        <button id="widget4-start" class="sim-button">start</button>
-        <button id="widget4-reset" class="sim-button">reset</button>
+        <button id="gradient-flow-start" class="sim-button">start</button>
+        <button id="gradient-flow-reset" class="sim-button">reset</button>
         <span style="margin-left: 1em;">plot w.r.t.</span>
-        <span id="widget4-xaxis-toggle" class="plot-xaxis-toggle" style="margin-left: 0.3em;">
+        <span id="gradient-flow-xaxis-toggle" class="plot-xaxis-toggle" style="margin-left: 0.3em;">
           <a href="#" data-mode="step" class="active">step</a><a href="#" data-mode="teff">$\eta \cdot \mathrm{step}$</a>
         </span>
-        <span id="widget4-info" class="tutorial-widget-info"></span>
+        <span id="gradient-flow-info" class="tutorial-widget-info"></span>
       </div>
       <div class="tutorial-widget-charts">
         <div class="tutorial-widget-chart">
           <div class="plot-box">
             <div class="plot-content">
-              <canvas id="widget4-loss" class="plot-canvas"></canvas>
+              <canvas id="gradient-flow-loss" class="plot-canvas"></canvas>
               <div class="y-axis-label y-axis-label-loss">loss $\mathcal{L}$</div>
               <div class="x-axis-label">step</div>
             </div>
@@ -260,7 +281,7 @@
         <div class="tutorial-widget-chart">
           <div class="plot-box">
             <div class="plot-content">
-              <canvas id="widget4-sharpness" class="plot-canvas"></canvas>
+              <canvas id="gradient-flow-sharpness" class="plot-canvas"></canvas>
               <div class="y-axis-label y-axis-label-norms">sharpness</div>
               <div class="x-axis-label">step</div>
             </div>
@@ -269,61 +290,92 @@
       </div>
     </div>
 
-    <p>How can we describe the training dynamics of neural networks beyond this threshold? One approach, called central flow, builds on the third-order Taylor analysis of self-stabilization. The idea is that you can time-average out the oscillations in the training dynamics. This leads to an equation where progressive sharpening and self-stabilizing terms cancel to lead to a simple description of average dynamics. The curious reader can check this blog post for more details.</p>
+    <p>How can we describe the training dynamics of neural networks beyond this threshold? One approach, called central flow<sup><a href="#ref-borde2024">[3]</a></sup>, builds on the third-order Taylor analysis of self-stabilization. The idea is that you can time-average out the oscillations in the training dynamics. This leads to an equation where progressive sharpening and self-stabilizing terms cancel to lead to a simple description of average dynamics. The curious reader can check this blog post for more details.</p>
 
     <!-- ==================== SECTION: Observations ==================== -->
 
     <h2>Observations On The Edge Of Stability And Progressive Sharpening</h2>
 
-    <p> Although the existence of the edge of stability (from second order Taylor arguments) and the self stabilizing effect at the edge (from the third order expansion) are well established, there is a lot that is unknown about this phenomenon. Here, we give a rough empirical overview of how the phenomenon changes across different but common machine learning scenarios, and some open questions that arise from these observations. </p>
+    <p> Although the existence of the edge of stability (from the second order Taylor expansion) and the self stabilizing effect at the edge (from the third order terms) are well established, a lot is still unknown about this phenomenon. Here, we give a rough empirical overview of how the phenomenon changes across different but common machine learning scenarios, and some open questions that arise from these observations. </p>
       
     <p>To back up our claims when possible and encourage exploration, we provide settings to show this in the widget at the bottom, or provide graphs from existing literature when the experiment would be too computationally expensive.</p>
 
     <h3>Learning Rate</h3>
     
-    This is the most important parameter (due to predicting the edge of stability). We note that although choosing large learning rates is optimal for compute efficiency, there are also issues with choosen learning rates too large (SEE: catapult phenomenon).
+    <p>This is the most important parameter (due to predicting the edge of stability). While we largely focus on choosing learning rates below the critical threshold in our experiments and watch as progressive sharpening drives them to the edge of stability, we can also choose learning rates larger than the initial critical sharpness $\eta > 2 /\lambda_0$. These can be separated into two phases: a catapult regime, where the model decreases in sharpness and successfully learns, and a divergent phase where the learning rate is above some $\lambda_{max}$ threshold and the model diverges without learning anything.</p>
+
+    <div class="preset-buttons">
+      <button class="load-runs-button" data-load-runs="runs/learning_rate/run_1_catapult.json,runs/learning_rate/run_2_default.json,runs/learning_rate/run_3_unstable.json">Example of Three Learning Rate Regimes</button>
+    </div>
       
     <h3>Activation Function</h3>
 
-    <p>Throughout this tutorial, we've focused on tanh networks even though ReLU networks are more common in practice. This choice is because ReLU networks seem to have more intense oscillations, with a critical threshold a little lower than the predicted $2/\eta$. A plausible explanation is the non-smoothness of ReLU, making the local dynamics predicted by a quadratic approximation less accurate.</p>
+    <p>Throughout this tutorial, we've focused on tanh nonlinearities even though ReLU is more common in practice. This is because ReLU networks seem to have more intense oscillations, with a critical threshold a little lower than the predicted $2/\eta$. A plausible explanation is the non-smoothness of ReLU, making the local dynamics predicted by a quadratic approximation less accurate.</p>
 
-    <p>Aside from this, it has unclear effects on initial sharpness and the rate of progressive sharpening. We include here networks where switching to ReLU increases the initial sharpness, but also cases where it decreases. (NEED TO ACTUALLY FIND THESE EXAMPLES)</p>
+    <p>Note that ReLU has unnatural spikes in sharpness in our code. This is due to it's non-smooth nature, and our choice of Hessian calculation algorithm (chosen for speed purposes). See this footnote for details on our implementation.</p>
 
-    <p>Note that deep linear networks can also exhibit the edge of stability.</p>
+    <p>Aside from these details related to the non-smooth nature, the effects of the nonlinear activation function are unknown. We include here networks where switching to ReLU increases the initial sharpness, but also cases where it decreases. (NEED TO ACTUALLY FIND THESE EXAMPLES)</p>
+
+    <p>Finally, we note nonlinearities are not necessary for the edge of stability. Deep linear networks can also exhibit progressive sharpening and edge of stability dynamics, as shown by our demo task where we initialize with small weights. This small weight initialization results in a well known staircase trend in the loss curves, which corresponds to our network learning progressively larger singular values of the linear data.</p>
 
     <div class="preset-buttons">
-      <button class="load-runs-button" data-load-runs="runs/activation_fn/run_1.json,runs/activation_fn/run_2.json">Chebyshev default, ReLU vs tanh</button>
+      <button class="load-runs-button" data-load-runs="runs/activation_fn/long_tanh.json,runs/activation_fn/long_relu.json">Chebyshev default, ReLU vs tanh</button>
+      <button class="load-runs-button" data-load-runs="runs/deep_linear/deep_linear.json">Deep linear network — edge of stability</button>
     </div>
 
     <p class="tutorial-note"><strong>Open Question:</strong> Can we prove the critical threshold for ReLU is somewhat lower? Eg, maybe an argument related to Jensen's inequality, since it's a convex function?</p>
 
+    <h3>Number of Eigenvalues</h3>
+
+    <p>Earlier, we saw many eigenvalues can reach the critical threshold and self-stabilize. The details of how progressive sharpening happens for multiple eigenvalues is an open question. We note that it seems like the complexity of the task is related with the number of sharp eigenvalues, with most of the small playground tasks we have here only displaying 2 sharp eigenvalues.</p>
+
     <h3>Other Optimizers</h3>
 
-    Other optimizers have different sharpness thresholds. There's also preconditioned SGD.
+    <p>We focus on full batch gradient descent as the simplest algorithm to analyze. However, the edge of stability phenomena can be extended to other optimizers. Eg, for momentum parameter $\beta$, the critical sharpness thresholds are </p>
+
+    $$
+    S_{\text{Polyak}} = \frac{1}{\eta}(2 + 2\beta), \quad S_{\text{Nesterov}} = \frac{1}{\eta}\cdot\frac{2 + 2\beta}{1 + 2\beta}
+    $$
+
+    <p>for Polyak and Nesterov momentum respectively.<sup><a href="#ref-cohen2021">[1]</a></sup> Note that Polyak momentum's threshold is higher than $2/\eta$, suggesting it stabilizes training at higher sharpness values. In contrast, Nesterov momentum's threshold lies between $2/\eta$ and Polyak's (since $1 + 2\beta > 1$), and is thus less stabilizing than Polyak.</p>
+
+    <p class="tutorial-note"><strong>Note:</strong> Is it possible to write more on other optimizers here, as a brief survey of results? @ Samyak.</p>
 
     <h3>Stochastic Gradient Descent</h3>
 
-    What can we say about SGD?
+    <p>In SGD, the gradients are updated from small batches. The sharpness will depend on this choice of batch since the loss landscape is different for each batch. This makes it difficult to reason about the critical threshold and progressive sharpening, since it becomes a random quantity each epoch and our model can randomly land in stable or unstable regions. It also naturally produces spikes in the training loss, obscuring the effects. This makes it an open question as to how much edge of stability dynamics affect SGD.</p>
 
-    <h3>Datasets</h3>
+    <p>Existing work (original paper on EOS)<sup><a href="#ref-cohen2021">[1]</a></sup> has a part in the appendix noting that large batch size things are consistent, while small batch size results in smaller sharpness.</p>
 
-    What can we say about datasets? Probably this section will have some collapsible links that open to graphs of larger datasets which show interesting things.
+    <p>Note results from dataset size investigations suggest that smaller datasets experience less effect from progressive sharpening. However, it is unclear this would apply to the smaller batches used in SGD, since that effect may only appear from using the same batch multiple times.</p>
 
-    <h3>Other Architectures (Not MLPs)</h3>
+    <h3>Datasets and Architectures</h3>
 
-    Out of scope for this demo, but again, link to some known examples.
+    <p>Progressive sharpening and edge of stability dynamics can be observed in a large variety of problems. Examples of known cases include image classification on CIFAR-10 with CNNs, ResNet, ViT, and sequence models on a synthetic sorting task with LSTM, Transformer, and Mamba.<sup><a href="#ref-borde2024">[3]</a></sup> The exact degree of progressive sharpening and the initial sharpness seem to vary across datasets.</p>
+    
+    <p>We note as a shorthand, simpler tasks tend to train faster, and the effect of progressive sharpening is less pronounced for these tasks as they quickly minimize their loss. For an example, reducing our Chebyshev regression task to only rank 3 results in much lower final sharpness.</p>
+
+    <p>The effect of dataset size has also been studied, indicating that changes in sharpness are more pronounced for larger datasets. As an example, we compare runs with different amounts of training points.</p>
 
     <h3>Network Width</h3>
 
-    I suspect that sharpness can go either way. Search for examples where it goes either way. In the muP limit, it's unclear, but the NTK probably has a firm answer for how things behave that might be worth adding here.
+    <p>Wide networks under the neural tangent kernel parameterization have weights that move linearly towards their final values, and as a result their Hessians do not change much. This implies very little progressive sharpening occurs, which matches empirical observations.<sup><a href="#ref-cohen2021">[1]</a></sup></p>
+    
+    <p>For the maximal update parameterization (muP) which we use primarily in this demo, the relationship is unclear. We provide examples where increased width can increase or decrease initial sharpness, and induce more or less progressive sharpening. (NEED TO ACTUALLY FIND THESE EXAMPLES).</p>
 
     <h3>Network Depth</h3>
 
-    I suspect that sharpness can go either way. Search for examples where it goes either way. 
+    <p>In general, it appears that deeper networks encounter more progressive sharpening throughout training. We include some examples here.</p>
 
+    <!--
     <p class="tutorial-note"><strong>Note:</strong> The idea for this section is that each item has, related to it, two buttons for some configurations that will be set in the playground at the bottom that will run experiments to support the idea.</p>
+-->
 
-    <p>You can play around with all of these yourself below.</p>
+    <h2>Exploration</h2>
+
+    <p>This concludes the tutorial. Here we include a playground where you can explore the edge of stability and progressive sharpening phenomena for yourself! You can adjust the model architecture, task, and training parameters to see how the dynamics change. We encourage you to try out different configurations and see if you can find any interesting phenomena. You can also load up pre-saved configurations discussed above and compare their sharpness values.</p>
+
+    <p>Note in practice, real experiments on sharpness in tasks such as CIFAR-10 can take hours to run, while the experiments in this playground are designed to run in minutes.</p>
 
   </div><!-- end .tutorial-content -->
 
@@ -352,6 +404,7 @@
             <select id="activationSelect" style="font-size: 15px; padding: 4px 8px;">
               <option value="tanh">tanh</option>
               <option value="relu">ReLU</option>
+              <option value="linear">linear</option>
             </select>
           </div>
 
@@ -443,7 +496,8 @@
         </div>
         <div style="text-align: center; flex: 1;">
           <div style="font-size: 15px; margin-bottom: 4px; color: #666;">loss function</div>
-          <div style="margin-top: 6px;">$$\mathcal{L} = \frac{1}{2N}\sum_{i=1}^{N}\left\|\hat{f}(\mathbf{x}_i) - \mathbf{y}_i\right\|^2$$</div>
+          <div style="margin-top: 6px;">$$\mathcal{L} = \frac{1}{2Nd}\sum_{i=1}^{N}\left\|\hat{f}(\mathbf{x}_i) - \mathbf{y}_i\right\|^2$$</div>
+          <div style="font-size: 12px; margin-top: 4px; color: #999;">$d$ = output dimension</div>
         </div>
         <div style="text-align: center; flex: 1;">
           <div style="font-size: 15px; margin-bottom: 4px; color: #666;">initialization (muP)</div>
@@ -557,6 +611,25 @@
       </div>
     </div>
   </div>
+
+  <!-- ==================== FOOTNOTES ==================== -->
+
+  <h2>Footnotes</h2>
+  <ol class="footnotes">
+    <!-- Add footnotes here as needed:
+    <li id="fn-1">Your footnote text here.</li>
+    Reference in text with: <sup><a href="#fn-1">†1</a></sup>
+    -->
+  </ol>
+
+  <!-- ==================== REFERENCES ==================== -->
+
+  <h2>References</h2>
+  <ol class="references">
+    <li id="ref-cohen2021">Cohen, J., Kaur, S., Li, Y., Kolter, J.Z., &amp; Talwalkar, A. (2021). Gradient Descent on Neural Networks Typically Occurs at the Edge of Stability. <em>ICLR 2021.</em> <a href="https://arxiv.org/abs/2103.00065">arXiv</a></li>
+    <li id="ref-damian2022">Damian, A., Nichani, E., &amp; Lee, J.D. (2022). Self-Stabilization: The Implicit Bias of Gradient Descent at the Edge of Stability. <em>ICLR 2023.</em> <a href="https://arxiv.org/abs/2209.15594">arXiv</a></li>
+    <li id="ref-borde2024">Borde, A.R., Liang, T., Uehara, M., &amp; Jain, P. (2024). Central Flow. <a href="https://arxiv.org/abs/2410.24206">arXiv</a></li>
+  </ol>
 
 </div>
 

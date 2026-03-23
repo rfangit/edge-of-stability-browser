@@ -154,7 +154,7 @@ export class Trainer {
 
       const lastLayer = numLayers - 1;
       for (let j = 0; j < outputDim; j++) {
-        this.delta[lastLayer][j] = -(yArr[j] - outArr[j]);
+        this.delta[lastLayer][j] = -(yArr[j] - outArr[j]) / outputDim;
       }
 
       for (let l = lastLayer; l >= 0; l--) {
@@ -173,13 +173,14 @@ export class Trainer {
         if (l > 0) {
           const prevA = fwd.activations[l];
           const isRelu = model.activation === 'relu';
+          const isLinear = model.activation === 'linear';
           for (let j = 0; j < cols; j++) {
             let sum = 0;
             for (let i = 0; i < rows; i++) {
               sum += model.W[l][i][j] * dl[i];
             }
             const a = prevA[j];
-            const dAct = isRelu ? (a > 0 ? 1 : 0) : (1 - a * a);
+            const dAct = isLinear ? 1 : (isRelu ? (a > 0 ? 1 : 0) : (1 - a * a));
             this.delta[l - 1][j] = sum * dAct;
           }
         }
@@ -245,13 +246,14 @@ export class Trainer {
       // Output is always the last activation (as an array)
       const outArr = fwd.activations[fwd.activations.length - 1];
 
-      // Compute per-sample loss: (1/2) Σ_j (y_j - ŷ_j)²
-      // and initial delta: dL/dz_out[j] = -(y_j - ŷ_j) = (ŷ_j - y_j)
+      // Compute per-sample loss: (1/2) * (1/outputDim) * Σ_j (y_j - ŷ_j)²
+      // Matches PyTorch's 0.5 * ((model(x) - y) ** 2).mean() which divides by N * outputDim
+      // Initial delta: dL/dz_out[j] = (ŷ_j - y_j) / outputDim
       const lastLayer = numLayers - 1;
       for (let j = 0; j < outputDim; j++) {
         const err = yArr[j] - outArr[j];
-        totalLoss += 0.5 * err * err;
-        this.delta[lastLayer][j] = -err;
+        totalLoss += 0.5 * err * err / outputDim;
+        this.delta[lastLayer][j] = -err / outputDim;
       }
 
       // ---- Backward pass ----
@@ -278,14 +280,16 @@ export class Trainer {
           // dL/dz_{l-1} = (W[l]^T * delta[l]) ⊙ activation'(z_{l-1})
           // tanh: activation'(z) = 1 - tanh(z)^2 = 1 - a^2
           // relu: activation'(z) = 1 if a > 0, else 0
+          // linear: activation'(z) = 1
           const isRelu = model.activation === 'relu';
+          const isLinear = model.activation === 'linear';
           for (let j = 0; j < prevSize; j++) {
             let sum = 0;
             for (let i = 0; i < rows; i++) {
               sum += model.W[l][i][j] * dl[i];
             }
             const a = prevA[j];
-            const dAct = isRelu ? (a > 0 ? 1 : 0) : (1 - a * a);
+            const dAct = isLinear ? 1 : (isRelu ? (a > 0 ? 1 : 0) : (1 - a * a));
             this.delta[l - 1][j] = sum * dAct;
           }
         }

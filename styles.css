@@ -368,6 +368,9 @@ select {
   margin: 1em 0;
 }
 
+/* Preset buttons — not currently used in the tutorial.
+   Kept for potential future use with data-preset="..." buttons
+   that configure the bottom playground widget via applyPreset(). */
 .preset-button {
   font-size: 13px;
   padding: 5px 14px;
@@ -414,3 +417,27 @@ select {
   cursor: wait;
 }
 
+/* Citations and footnotes */
+sup a {
+  text-decoration: none;
+  color: #4466aa;
+  font-size: 12px;
+}
+
+sup a:hover {
+  text-decoration: underline;
+}
+
+.references, .footnotes {
+  font-size: 14px;
+  line-height: 1.8;
+  padding-left: 1.5em;
+}
+
+.references li, .footnotes li {
+  margin-bottom: 0.5em;
+}
+
+.references a, .footnotes a {
+  color: #4466aa;
+}

@@ -11,21 +11,21 @@ import { MultiSimulation, MultiLossChart, MultiSharpnessChart } from './multi-si
 import { CHEBYSHEV_DEFAULTS, describeDefaults } from './defaults.js';
 
 // ============================================================================
-// WIDGET 1: Progressive Sharpening + Edge of Stability (5000 steps, 1 eigenvalue)
+// BASE EXPERIMENT: Progressive Sharpening + Edge of Stability (5000 steps, 1 eigenvalue)
 // ============================================================================
 
-function initWidget1() {
-  const startBtn = document.getElementById('widget1-start');
-  const resetBtn = document.getElementById('widget1-reset');
+function initBaseExperiment() {
+  const startBtn = document.getElementById('base-experiment-start');
+  const resetBtn = document.getElementById('base-experiment-reset');
   if (!startBtn) return null; // widget not in DOM
 
   // Populate info label from defaults
-  const infoEl = document.getElementById('widget1-info');
+  const infoEl = document.getElementById('base-experiment-info');
   if (infoEl) infoEl.textContent = `${describeDefaults(CHEBYSHEV_DEFAULTS)}, Chebyshev degree ${CHEBYSHEV_DEFAULTS.taskParams.degree}, ${CHEBYSHEV_DEFAULTS.taskParams.nTrain} points — runs for 5000 steps`;
 
   const sim = new Simulation({ maxSteps: 5000, kEigs: 1, stepsPerSecId: null });
-  const lossChart = new LossChart('widget1-loss', { showTest: false, showEma: false });
-  const rightChart = new RightChart('widget1-sharpness', { kEigs: 1 });
+  const lossChart = new LossChart('base-experiment-loss', { showTest: false, showEma: false });
+  const rightChart = new RightChart('base-experiment-sharpness', { kEigs: 1 });
 
   sim.onFrameUpdate = () => {
     const state = sim.getState();
@@ -48,7 +48,6 @@ function initWidget1() {
       if (!sim.model) {
         const d = CHEBYSHEV_DEFAULTS;
         sim.captureParams(d.taskKey, d.taskParams, d.activation, d.hiddenDims, d.eta, d.batchSize, d.modelSeed);
-        lossChart.setInitialLoss(0.5);
       }
       sim.start();
       startBtn.textContent = 'pause';
@@ -70,21 +69,21 @@ function initWidget1() {
 }
 
 // ============================================================================
-// WIDGET 3: Multiple Eigenvalues (no step limit, 3 eigenvalues)
+// MULTI EIGENVALUES: Multiple eigenvalue tracking (no step limit, 3 eigenvalues)
 // ============================================================================
 
-function initWidget3() {
-  const startBtn = document.getElementById('widget3-start');
-  const resetBtn = document.getElementById('widget3-reset');
+function initMultiEigenvalues() {
+  const startBtn = document.getElementById('multi-eigenvalues-start');
+  const resetBtn = document.getElementById('multi-eigenvalues-reset');
   if (!startBtn) return null;
 
   // Populate info label from defaults
-  const infoEl = document.getElementById('widget3-info');
+  const infoEl = document.getElementById('multi-eigenvalues-info');
   if (infoEl) infoEl.textContent = `${describeDefaults(CHEBYSHEV_DEFAULTS)}, 3 eigenvalues — stop when ready`;
 
   const sim = new Simulation({ kEigs: 3, stepsPerSecId: null });
-  const lossChart = new LossChart('widget3-loss', { showTest: false, showEma: false });
-  const rightChart = new RightChart('widget3-sharpness', { kEigs: 3 });
+  const lossChart = new LossChart('multi-eigenvalues-loss', { showTest: false, showEma: false });
+  const rightChart = new RightChart('multi-eigenvalues-sharpness', { kEigs: 3 });
 
   sim.onFrameUpdate = () => {
     const state = sim.getState();
@@ -102,7 +101,6 @@ function initWidget3() {
       if (!sim.model) {
         const d = CHEBYSHEV_DEFAULTS;
         sim.captureParams(d.taskKey, d.taskParams, d.activation, d.hiddenDims, d.eta, d.batchSize, d.modelSeed);
-        lossChart.setInitialLoss(0.5);
       }
       sim.start();
       startBtn.textContent = 'pause';
@@ -124,13 +122,13 @@ function initWidget3() {
 }
 
 // ============================================================================
-// WIDGET 4: Gradient Flow Comparison (3 learning rates, shared charts)
+// GRADIENT FLOW: Three learning rate comparison (3 learning rates, shared charts)
 // ============================================================================
 
-function initWidget4() {
-  const startBtn = document.getElementById('widget4-start');
-  const resetBtn = document.getElementById('widget4-reset');
-  const xAxisToggle = document.getElementById('widget4-xaxis-toggle');
+function initGradientFlow() {
+  const startBtn = document.getElementById('gradient-flow-start');
+  const resetBtn = document.getElementById('gradient-flow-reset');
+  const xAxisToggle = document.getElementById('gradient-flow-xaxis-toggle');
   if (!startBtn) return null;
 
   const baseEta = CHEBYSHEV_DEFAULTS.eta;
@@ -138,7 +136,7 @@ function initWidget4() {
   const etas = etaMultipliers.map(m => baseEta * m);
 
   // Populate info label
-  const infoEl = document.getElementById('widget4-info');
+  const infoEl = document.getElementById('gradient-flow-info');
   if (infoEl) infoEl.textContent = `η = ${etas.map(e => parseFloat(e.toPrecision(4))).join(', ')} — same model, three learning rates`;
 
   // stepsPerTick proportional to 1/eta so step*eta advances ~equally per tick
@@ -173,8 +171,8 @@ function initWidget4() {
     hessianInterval: 3  // compute Hessian every 3 steps (reduces jitter + cost)
   });
 
-  const lossChart = new MultiLossChart('widget4-loss', labels, { dashes });
-  const sharpnessChart = new MultiSharpnessChart('widget4-sharpness', labels, { dashes });
+  const lossChart = new MultiLossChart('gradient-flow-loss', labels, { dashes });
+  const sharpnessChart = new MultiSharpnessChart('gradient-flow-sharpness', labels, { dashes });
 
   // Default to η·step view
   let useEffectiveTime = true;
@@ -241,7 +239,7 @@ function initWidget4() {
 // ============================================================================
 
 export function initTutorialWidgets() {
-  const w1 = initWidget1();
-  const w3 = initWidget3();
-  const w4 = initWidget4();
+  const w1 = initBaseExperiment();
+  const w2 = initMultiEigenvalues();
+  const w3 = initGradientFlow();
 }

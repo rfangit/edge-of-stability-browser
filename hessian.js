@@ -56,6 +56,11 @@ function unflattenParams(model, flat) {
  *
  * Uses the Trainer's computeGradientFlat to avoid duplicating backprop code.
  *
+ * Note: for non-smooth activations (ReLU), this can produce spurious spikes
+ * when ReLU units flip on/off between the ±ε evaluations. This is a known
+ * limitation of finite-difference HVPs; autograd-based HVPs (as in PyTorch)
+ * handle this correctly via subgradients.
+ *
  * @param {Trainer} trainer - the trainer (has computeGradientFlat and model ref)
  * @param {number[][]} dataX - input data
  * @param {number[][]} dataYArrays - target data (already array-wrapped)
@@ -137,20 +142,35 @@ function vecRandom(n) {
 }
 
 /**
- * Solve eigenvalues of a symmetric tridiagonal matrix using QR algorithm.
+ * Solve eigenvalues (and optionally eigenvectors) of a symmetric tridiagonal matrix
+ * using the implicit QR algorithm with Givens rotations.
  * Input: alphas (diagonal), betas (off-diagonal).
- * Returns sorted eigenvalues (ascending).
+ * Returns { eigenvalues, eigenvectors? } sorted ascending.
+ * Eigenvectors are columns of the rotation matrix Z (each is length n).
  */
-function tridiagonalEigenvalues(alphas, betas) {
+function tridiagonalEigen(alphas, betas, computeEigenvectors = false) {
   const n = alphas.length;
-  if (n === 0) return [];
-  if (n === 1) return [alphas[0]];
+  if (n === 0) return { eigenvalues: [], eigenvectors: [] };
+  if (n === 1) return {
+    eigenvalues: [alphas[0]],
+    eigenvectors: computeEigenvectors ? [[1]] : []
+  };
 
   const d = new Array(n);
   const e = new Array(n);
   for (let i = 0; i < n; i++) d[i] = alphas[i];
   for (let i = 0; i < n - 1; i++) e[i] = betas[i];
   e[n - 1] = 0;
+
+  // Initialize eigenvector matrix as identity (columns will become eigenvectors)
+  let Z = null;
+  if (computeEigenvectors) {
+    Z = new Array(n);
+    for (let i = 0; i < n; i++) {
+      Z[i] = new Array(n).fill(0);
+      Z[i][i] = 1;
+    }
+  }
 
   for (let l = 0; l < n; l++) {
     let iter = 0;
@@ -196,6 +216,16 @@ function tridiagonalEigenvalues(alphas, betas) {
         p = s * r3;
         d[i + 1] = newShift + p;
         shift = c * r3 - b;
+
+        // Accumulate Givens rotation into eigenvector matrix
+        if (Z) {
+          for (let k = 0; k < n; k++) {
+            const zi  = Z[k][i];
+            const zi1 = Z[k][i + 1];
+            Z[k][i + 1] = s * zi + c * zi1;
+            Z[k][i]     = c * zi - s * zi1;
+          }
+        }
       }
 
       d[l] -= p;
@@ -206,8 +236,22 @@ function tridiagonalEigenvalues(alphas, betas) {
     }
   }
 
-  d.sort((a, b) => a - b);
-  return d;
+  // Sort eigenvalues ascending, reorder eigenvector columns to match
+  const indices = d.map((val, idx) => idx);
+  indices.sort((a, b) => d[a] - d[b]);
+
+  const sortedEigenvalues = indices.map(i => d[i]);
+
+  let sortedEigenvectors = [];
+  if (Z) {
+    sortedEigenvectors = indices.map(i => {
+      const col = new Array(n);
+      for (let k = 0; k < n; k++) col[k] = Z[k][i];
+      return col;
+    });
+  }
+
+  return { eigenvalues: sortedEigenvalues, eigenvectors: sortedEigenvectors };
 }
 
 // ============================================================================
@@ -215,8 +259,8 @@ function tridiagonalEigenvalues(alphas, betas) {
 // ============================================================================
 
 /**
- * Estimate the top-k eigenvalues of the Hessian using Lanczos iteration
- * with full reorthogonalization.
+ * Estimate the top-k eigenvalues (and optionally eigenvectors) of the Hessian
+ * using Lanczos iteration with full reorthogonalization.
  *
  * @param {Trainer} trainer - the trainer (provides model, gradient computation)
  * @param {number[][]} dataX - training inputs
@@ -226,14 +270,19 @@ function tridiagonalEigenvalues(alphas, betas) {
  * @param {number} options.numIters - minimum iterations before convergence check (default 20)
  * @param {number} options.maxIters - hard cap on iterations (default 100)
  * @param {number} options.tolRatio - relative convergence threshold (default 0.01)
- * @returns {{ eigenvalues: number[], numIters: number }}
+ * @param {boolean} options.returnEigenvectors - if true, also return eigenvectors (default false)
+ * @returns {{ eigenvalues: number[], eigenvectors?: number[][], numIters: number }}
+ *   eigenvalues: sorted ascending (last element = largest)
+ *   eigenvectors: if requested, eigenvectors[i] corresponds to eigenvalues[i],
+ *     each is a flat array of length P (same layout as flattenParams)
  */
 export function lanczosTopEigenvalues(trainer, dataX, dataYArrays, options = {}) {
   const {
     kEigs = 3,
     numIters = 20,
     maxIters = 100,
-    tolRatio = 0.01
+    tolRatio = 0.01,
+    returnEigenvectors = false
   } = options;
 
   const P = trainer.model.numParameters();
@@ -277,7 +326,8 @@ export function lanczosTopEigenvalues(trainer, dataX, dataYArrays, options = {})
     const beta = vecNorm(z);
     const actualIters = i + 1;
 
-    const currentEigs = tridiagonalEigenvalues(alphasList, betasList);
+    // For convergence check, only need eigenvalues (no eigenvectors yet)
+    const { eigenvalues: currentEigs } = tridiagonalEigen(alphasList, betasList, false);
     const k = Math.min(kEigs, currentEigs.length);
     topEigs = currentEigs.slice(-k);
 
@@ -286,6 +336,9 @@ export function lanczosTopEigenvalues(trainer, dataX, dataYArrays, options = {})
     if (actualIters >= numIters && prevTop !== null) {
       const relChange = Math.abs(currentTop - prevTop) / Math.max(Math.abs(prevTop), 1e-12);
       if (relChange < tolRatio) {
+        if (returnEigenvectors) {
+          return _extractEigenvectors(alphasList, betasList, Q, topEigs, k, P, actualIters);
+        }
         return { eigenvalues: topEigs, numIters: actualIters };
       }
     }
@@ -293,6 +346,9 @@ export function lanczosTopEigenvalues(trainer, dataX, dataYArrays, options = {})
     prevTop = currentTop;
 
     if (beta < 1e-12) {
+      if (returnEigenvectors) {
+        return _extractEigenvectors(alphasList, betasList, Q, topEigs, k, P, actualIters);
+      }
       return { eigenvalues: topEigs, numIters: actualIters };
     }
 
@@ -302,5 +358,46 @@ export function lanczosTopEigenvalues(trainer, dataX, dataYArrays, options = {})
     betaPrev = beta;
   }
 
-  return { eigenvalues: topEigs || [], numIters: maxIters };
+  const finalEigs = topEigs || [];
+  if (returnEigenvectors && finalEigs.length > 0) {
+    return _extractEigenvectors(alphasList, betasList, Q, finalEigs, finalEigs.length, P, maxIters);
+  }
+  return { eigenvalues: finalEigs, numIters: maxIters };
+}
+
+/**
+ * Extract Hessian eigenvectors from the Lanczos basis and tridiagonal eigenvectors.
+ * v_i = Q * s_i, where s_i is the i-th eigenvector of the tridiagonal matrix T.
+ */
+function _extractEigenvectors(alphas, betas, Q, topEigs, k, P, numIters) {
+  const m = Q.length; // number of Lanczos vectors
+
+  // Get eigenvectors of the tridiagonal matrix
+  const { eigenvalues: allEigs, eigenvectors: allEvecs } = tridiagonalEigen(alphas, betas, true);
+
+  // The top-k eigenvalues are the last k in the sorted list
+  // Find the corresponding tridiagonal eigenvectors
+  const nAll = allEigs.length;
+  const topIndices = [];
+  for (let i = nAll - k; i < nAll; i++) {
+    topIndices.push(i);
+  }
+
+  // Multiply Q (m Lanczos vectors of length P) by each tridiagonal eigenvector (length m)
+  // to get the Hessian eigenvectors (length P)
+  const eigenvectors = [];
+  for (const idx of topIndices) {
+    const s = allEvecs[idx]; // tridiagonal eigenvector, length m
+    const v = new Array(P).fill(0);
+    for (let j = 0; j < m; j++) {
+      const qj = Q[j];
+      const sj = s[j];
+      for (let p = 0; p < P; p++) {
+        v[p] += sj * qj[p];
+      }
+    }
+    eigenvectors.push(v);
+  }
+
+  return { eigenvalues: topEigs, eigenvectors, numIters };
 }

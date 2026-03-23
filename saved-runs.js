@@ -2,6 +2,8 @@
 // SAVED RUNS - Save, display, and download training run snapshots
 // ============================================================================
 
+import { formatTickLabel, baseChartOptions, CHART_FONT } from './chart-utils.js';
+
 const RUN_COLORS = [
   'rgb(220, 50, 50)',     // red
   'rgb(40, 130, 180)',    // blue
@@ -13,17 +15,6 @@ const RUN_COLORS = [
   'rgb(120, 120, 120)',   // gray
 ];
 
-function formatTickLabel(value) {
-  if (value === 0) return '0';
-  const abs = Math.abs(value);
-  if (abs >= 1 && Math.abs(value - Math.round(value)) < 0.01) {
-    return String(Math.round(value));
-  }
-  return parseFloat(value.toPrecision(4)).toString();
-}
-
-const CHART_FONT = { family: 'Monaco, Consolas, "Courier New", monospace' };
-
 export class SavedRunsManager {
   constructor() {
     this.runs = [];
@@ -34,7 +25,7 @@ export class SavedRunsManager {
     this.isExpanded = false;
 
     this._initUI();
-    this._initCharts();
+    // Charts are created lazily on first use via _ensureCharts()
   }
 
   _initUI() {
@@ -76,56 +67,27 @@ export class SavedRunsManager {
     const sharpCanvas = document.getElementById('savedSharpnessChart');
     if (!lossCanvas || !sharpCanvas) return;
 
-    const baseOpts = {
-      responsive: true,
-      maintainAspectRatio: false,
-      animation: false,
-      scales: {
-        x: {
-          type: 'linear',
-          min: 0,
-          ticks: {
-            maxRotation: 0,
-            font: { size: 14, ...CHART_FONT },
-            callback: function(value) { return formatTickLabel(value); }
-          }
-        },
-        y: {
-          type: 'linear',
-          beginAtZero: true,
-          ticks: {
-            font: { size: 14, ...CHART_FONT },
-            callback: function(value) { return formatTickLabel(value); }
-          }
-        }
-      },
-      plugins: {
-        legend: {
-          display: true,
-          position: 'top',
-          align: 'start',
-          onClick: () => {},
-          labels: {
-            usePointStyle: false,
-            boxWidth: 40,
-            boxHeight: 2,
-            font: { size: 11, ...CHART_FONT }
-          }
-        }
-      }
-    };
-
     this.lossChart = new Chart(lossCanvas.getContext('2d'), {
       type: 'line',
       data: { datasets: [] },
-      options: JSON.parse(JSON.stringify(baseOpts))
+      options: baseChartOptions()
     });
 
     this.sharpnessChart = new Chart(sharpCanvas.getContext('2d'), {
       type: 'line',
       data: { datasets: [] },
-      options: JSON.parse(JSON.stringify(baseOpts))
+      options: baseChartOptions()
     });
+  }
+
+  /** Create charts if they don't exist yet. Must be called after panel is visible. */
+  _ensureCharts() {
+    if (!this.lossChart || !this.sharpnessChart) {
+      this._initCharts();
+      // Force an initial render pass so Chart.js fully initializes its internals
+      if (this.lossChart) this.lossChart.update();
+      if (this.sharpnessChart) this.sharpnessChart.update();
+    }
   }
 
   /**
@@ -175,6 +137,7 @@ export class SavedRunsManager {
   }
 
   _updateCharts() {
+    this._ensureCharts();
     if (!this.lossChart || !this.sharpnessChart) return;
 
     // Helper: make a color transparent
@@ -209,7 +172,7 @@ export class SavedRunsManager {
         return formatTickLabel(value);
       };
     }
-    this.lossChart.update('none');
+    this.lossChart.update();
 
     // Sharpness chart — plot top eigenvalue + 2/η threshold per run
     const sharpDatasets = [];
@@ -281,7 +244,7 @@ export class SavedRunsManager {
       }
       this.sharpnessChart.options.scales.y.max = yMax;
     }
-    this.sharpnessChart.update('none');
+    this.sharpnessChart.update();
   }
 
   _updateRunList() {
@@ -462,12 +425,21 @@ export class SavedRunsManager {
       }
     }
 
-    this._updateCharts();
-    this._updateRunList();
-    this._updateToggleLabel();
-
-    // Auto-expand the saved runs panel and scroll to it
+    // Expand panel FIRST so Chart.js canvases have dimensions
     this._expandAndScroll();
+
+    // Double requestAnimationFrame ensures the browser has fully reflowed
+    // the panel before we create/resize charts
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        this._ensureCharts();
+        if (this.lossChart) this.lossChart.resize();
+        if (this.sharpnessChart) this.sharpnessChart.resize();
+        this._updateCharts();
+        this._updateRunList();
+        this._updateToggleLabel();
+      });
+    });
   }
 
   _expandAndScroll() {
