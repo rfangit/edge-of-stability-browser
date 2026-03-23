@@ -21,15 +21,17 @@ export class SavedRunsManager {
     this.runCounter = 0;
     this.lossChart = null;
     this.sharpnessChart = null;
-    this.clipSharpness = true; // default: on
+    this.clipSharpness = true;
     this.isExpanded = false;
 
     this._initUI();
-    // Charts are created lazily on first use via _ensureCharts()
+    // Charts are created lazily — the canvases live inside a display:none panel,
+    // and Chart.js can't measure them until the panel is visible.
   }
 
+  // ---------- UI setup ----------
+
   _initUI() {
-    // Toggle button
     const toggleBtn = document.getElementById('toggleSavedRuns');
     if (toggleBtn) {
       toggleBtn.addEventListener('click', () => {
@@ -40,7 +42,6 @@ export class SavedRunsManager {
       });
     }
 
-    // Clear button
     const clearBtn = document.getElementById('clearSavedRuns');
     if (clearBtn) {
       clearBtn.addEventListener('click', () => {
@@ -52,7 +53,6 @@ export class SavedRunsManager {
       });
     }
 
-    // Clip sharpness checkbox
     const clipCb = document.getElementById('savedRunsClipSharpness');
     if (clipCb) {
       clipCb.addEventListener('change', () => {
@@ -62,6 +62,12 @@ export class SavedRunsManager {
     }
   }
 
+  // ---------- Lazy chart creation ----------
+
+  /**
+   * Create Chart.js instances. Only call when the panel is visible,
+   * otherwise Chart.js renders to a zero-size canvas and never recovers.
+   */
   _initCharts() {
     const lossCanvas = document.getElementById('savedLossChart');
     const sharpCanvas = document.getElementById('savedSharpnessChart');
@@ -80,37 +86,27 @@ export class SavedRunsManager {
     });
   }
 
-  /** Create charts if they don't exist yet. Must be called after panel is visible. */
+  /** Ensure charts exist. Called before any chart update. */
   _ensureCharts() {
     if (!this.lossChart || !this.sharpnessChart) {
       this._initCharts();
-      // Force an initial render pass so Chart.js fully initializes its internals
-      if (this.lossChart) this.lossChart.update();
-      if (this.sharpnessChart) this.sharpnessChart.update();
     }
   }
 
-  /**
-   * Save a snapshot of the current simulation.
-   * @param {object} params - { task, taskParams, activation, hiddenDims, eta, batchSize, modelSeed }
-   * @param {Array<{iteration: number, loss: number}>} lossHistory
-   * @param {Array<{iteration: number, loss: number}>} testLossHistory
-   * @param {Array<{iteration: number, eigs: number[]}>} eigenvalueHistory
-   */
+  // ---------- Save from live simulation ----------
+
   saveRun(params, lossHistory, testLossHistory, eigenvalueHistory) {
     if (!lossHistory || lossHistory.length === 0) return;
 
     this.runCounter++;
     const color = RUN_COLORS[(this.runCounter - 1) % RUN_COLORS.length];
-
-    // Build description
     const dims = params.hiddenDims ? params.hiddenDims.join('+') : '?';
     const label = `Run ${this.runCounter}: ${params.activation}, [${dims}], η=${params.eta}`;
 
     const run = {
       index: this.runCounter,
-      label: label,
-      color: color,
+      label,
+      color,
       visible: true,
       params: { ...params },
       lossHistory: lossHistory.map(p => ({ iteration: p.iteration, loss: p.loss })),
@@ -127,9 +123,10 @@ export class SavedRunsManager {
     this._updateCharts();
     this._updateRunList();
     this._updateToggleLabel();
-
     return run;
   }
+
+  // ---------- Chart rendering ----------
 
   _updateToggleLabel() {
     const countEl = document.getElementById('savedRunCount');
@@ -140,10 +137,9 @@ export class SavedRunsManager {
     this._ensureCharts();
     if (!this.lossChart || !this.sharpnessChart) return;
 
-    // Helper: make a color transparent
     const dimColor = (color) => color.replace('rgb(', 'rgba(').replace(')', ', 0.1)');
 
-    // Loss chart
+    // --- Loss chart ---
     const lossDatasets = this.runs.map(run => ({
       label: run.label,
       data: run.lossHistory.map(p => ({ x: p.iteration, y: p.loss })),
@@ -155,14 +151,25 @@ export class SavedRunsManager {
     }));
     this.lossChart.data.datasets = lossDatasets;
 
-    // Auto-scale (only from visible runs)
     let xMax = 0, yMax = 0;
+    // Cap y-axis: never show more than 100× the initial loss of any visible run.
+    // This keeps the scale meaningful and avoids divergent spikes dominating.
+    let lossCap = Infinity;
+    for (const run of this.runs) {
+      if (run.visible && run.lossHistory.length > 0) {
+        const initialLoss = run.lossHistory[0].loss;
+        const runCap = initialLoss * 100;
+        if (runCap < lossCap) lossCap = runCap;
+      }
+    }
     for (const run of this.runs) {
       for (const p of run.lossHistory) {
         if (p.iteration > xMax) xMax = p.iteration;
-        if (run.visible && p.loss > yMax) yMax = p.loss;
+        if (run.visible && p.loss > yMax && p.loss <= lossCap) yMax = p.loss;
       }
     }
+    // If all losses exceed the cap, fall back to the cap itself
+    if (yMax === 0 && lossCap < Infinity) yMax = lossCap;
     this.lossChart.options.scales.x.max = xMax || undefined;
     if (yMax > 0) {
       const yMaxPadded = yMax * 1.4;
@@ -172,9 +179,9 @@ export class SavedRunsManager {
         return formatTickLabel(value);
       };
     }
-    this.lossChart.update();
+    this.lossChart.update('none');
 
-    // Sharpness chart — plot top eigenvalue + 2/η threshold per run
+    // --- Sharpness chart ---
     const sharpDatasets = [];
     let sxMax = 0, syMax = 0;
 
@@ -184,7 +191,6 @@ export class SavedRunsManager {
       if (run.visible && threshold > syMax) syMax = threshold;
       const color = run.visible ? run.color : dimColor(run.color);
 
-      // Eigenvalue curve (top eigenvalue)
       if (run.eigenvalueHistory.length > 0) {
         const eigData = run.eigenvalueHistory.map(p => {
           const k = p.eigs.length;
@@ -211,7 +217,6 @@ export class SavedRunsManager {
         }
       }
 
-      // Threshold line (dashed, same color)
       if (sxMax > 0) {
         sharpDatasets.push({
           label: `2/η (${eta})`,
@@ -244,8 +249,10 @@ export class SavedRunsManager {
       }
       this.sharpnessChart.options.scales.y.max = yMax;
     }
-    this.sharpnessChart.update();
+    this.sharpnessChart.update('none');
   }
+
+  // ---------- Run list UI ----------
 
   _updateRunList() {
     const listEl = document.getElementById('savedRunList');
@@ -297,7 +304,6 @@ export class SavedRunsManager {
       applyBtn.textContent = 'apply params';
       applyBtn.addEventListener('click', () => {
         const p = run.params;
-        // Build a preset-compatible object from the run's params
         const preset = {
           task: p.task || p.taskKey,
           activation: p.activation,
@@ -312,7 +318,6 @@ export class SavedRunsManager {
         if (window.applyPreset) {
           window.applyPreset(preset);
         }
-        // Brief feedback
         applyBtn.textContent = '✓ applied';
         setTimeout(() => { applyBtn.textContent = 'apply params'; }, 1200);
       });
@@ -335,26 +340,22 @@ export class SavedRunsManager {
     }
   }
 
+  // ---------- Download ----------
+
   _downloadRun(run) {
-    // Compact format: flat arrays instead of {iteration, loss} objects
-    // Loss is just an array of values — index i corresponds to step i+1
     const loss = run.lossHistory.map(p => p.loss);
     const testLoss = run.testLossHistory.length > 0
       ? run.testLossHistory.map(p => p.loss)
       : [];
-
-    // Eigenvalues: array of arrays (one per recorded step)
-    // Each inner array has kEigs values, sorted ascending
-    // Recorded every hessianInterval steps (usually every step)
     const eigenvalues = run.eigenvalueHistory.map(p => p.eigs);
 
     const data = {
       savedAt: run.savedAt,
       params: run.params,
       totalSteps: run.totalSteps,
-      loss: loss,
-      testLoss: testLoss,
-      eigenvalues: eigenvalues
+      loss,
+      testLoss,
+      eigenvalues
     };
 
     const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
@@ -368,9 +369,11 @@ export class SavedRunsManager {
     URL.revokeObjectURL(url);
   }
 
+  // ---------- Load from JSON files ----------
+
   /**
-   * Load runs from JSON files (compact format) and add them as saved runs.
-   * @param {string[]} urls - array of JSON file paths (e.g. ['runs/activation_fn/run_1.json'])
+   * Load runs from JSON files and add them as saved runs.
+   * @param {string[]} urls - array of JSON file paths
    */
   async loadRunsFromFiles(urls) {
     for (const url of urls) {
@@ -385,38 +388,24 @@ export class SavedRunsManager {
         this.runCounter++;
         const color = RUN_COLORS[(this.runCounter - 1) % RUN_COLORS.length];
 
-        // Reconstruct label from params (always dynamic, never stored)
         const p = data.params || {};
         const dims = p.hiddenDims ? p.hiddenDims.join('+') : '?';
         const label = `Run ${this.runCounter}: ${p.activation || '?'}, [${dims}], η=${p.eta || '?'}`;
 
-        // Convert compact format back to internal format
-        const lossHistory = (data.loss || []).map((loss, i) => ({
-          iteration: i + 1,
-          loss: loss
-        }));
-
-        const testLossHistory = (data.testLoss || []).map((loss, i) => ({
-          iteration: i + 1,
-          loss: loss
-        }));
-
-        const eigenvalueHistory = (data.eigenvalues || []).map((eigs, i) => ({
-          iteration: i + 1,
-          eigs: Array.isArray(eigs) ? eigs : [eigs]
-        }));
-
         const run = {
           index: this.runCounter,
-          label: label,
-          color: color,
+          label,
+          color,
           visible: true,
           params: p,
-          lossHistory: lossHistory,
-          testLossHistory: testLossHistory,
-          eigenvalueHistory: eigenvalueHistory,
+          lossHistory: (data.loss || []).map((loss, i) => ({ iteration: i + 1, loss })),
+          testLossHistory: (data.testLoss || []).map((loss, i) => ({ iteration: i + 1, loss })),
+          eigenvalueHistory: (data.eigenvalues || []).map((eigs, i) => ({
+            iteration: i + 1,
+            eigs: Array.isArray(eigs) ? eigs : [eigs]
+          })),
           savedAt: data.savedAt || new Date().toISOString(),
-          totalSteps: data.totalSteps || lossHistory.length
+          totalSteps: data.totalSteps || (data.loss || []).length
         };
 
         this.runs.push(run);
@@ -425,21 +414,19 @@ export class SavedRunsManager {
       }
     }
 
-    // Expand panel FIRST so Chart.js canvases have dimensions
+    // Make the panel visible so Chart.js canvases can be measured
     this._expandAndScroll();
 
-    // Double requestAnimationFrame ensures the browser has fully reflowed
-    // the panel before we create/resize charts
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        this._ensureCharts();
-        if (this.lossChart) this.lossChart.resize();
-        if (this.sharpnessChart) this.sharpnessChart.resize();
-        this._updateCharts();
-        this._updateRunList();
-        this._updateToggleLabel();
-      });
-    });
+    // Chart.js uses a ResizeObserver to detect canvas dimensions. After
+    // making the panel visible, the observer fires asynchronously — we
+    // need to wait for it before the first render will succeed. A short
+    // setTimeout lets the browser complete its layout + resize cycle.
+    setTimeout(() => {
+      this._ensureCharts();
+      this._updateCharts();
+      this._updateRunList();
+      this._updateToggleLabel();
+    }, 60);
   }
 
   _expandAndScroll() {
@@ -448,12 +435,13 @@ export class SavedRunsManager {
     if (panel) panel.style.display = 'block';
     this._updateToggleLabel();
 
-    // Scroll to saved runs
     const toggleBtn = document.getElementById('toggleSavedRuns');
     if (toggleBtn) {
       toggleBtn.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   }
+
+  // ---------- Bind load-runs buttons ----------
 
   /**
    * Bind all load-runs buttons in the DOM.
@@ -465,7 +453,6 @@ export class SavedRunsManager {
         e.preventDefault();
         const urls = btn.dataset.loadRuns.split(',').map(u => u.trim());
 
-        // Visual feedback
         const origText = btn.textContent;
         btn.textContent = 'loading...';
         btn.disabled = true;
