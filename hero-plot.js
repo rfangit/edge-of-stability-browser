@@ -22,6 +22,8 @@ const EIG_COLORS = [
   'rgb(220, 50, 50)',    // λ₁ - red
   'rgb(230, 120, 30)',   // λ₂ - orange
   'rgb(80, 180, 80)',    // λ₃ - green
+  'rgb(150, 80, 200)',   // λ₄ - purple
+  'rgb(40, 130, 180)',   // λ₅ - blue
 ];
 
 const LOSS_COLOR = 'rgb(40, 130, 130)';
@@ -68,9 +70,12 @@ export class HeroPlot {
     this.eta = params.eta || 0.01;
     this.threshold = 2 / this.eta;
 
+    // stepInterval: how many actual training steps each data point represents
+    const stepInterval = this.data.stepInterval || 1;
+
     // Parse loss data
     const lossArr = this.data.loss || [];
-    this.lossData = lossArr.map((loss, i) => ({ x: i + 1, y: loss }));
+    this.lossData = lossArr.map((loss, i) => ({ x: (i + 1) * stepInterval, y: loss }));
 
     // Parse eigenvalue data
     const eigArr = this.data.eigenvalues || [];
@@ -82,7 +87,7 @@ export class HeroPlot {
       this.eigData.push(eigArr.map((eigs, i) => {
         const arr = Array.isArray(eigs) ? eigs : [eigs];
         const eigIdx = arr.length - 1 - k;
-        return { x: i + 1, y: eigIdx >= 0 ? arr[eigIdx] : 0 };
+        return { x: (i + 1) * stepInterval, y: eigIdx >= 0 ? arr[eigIdx] : 0 };
       }));
     }
 

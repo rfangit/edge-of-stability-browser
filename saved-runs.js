@@ -152,13 +152,13 @@ export class SavedRunsManager {
     this.lossChart.data.datasets = lossDatasets;
 
     let xMax = 0, yMax = 0;
-    // Cap y-axis: never show more than 100× the initial loss of any visible run.
+    // Cap y-axis: never show more than 50× the initial loss of any visible run.
     // This keeps the scale meaningful and avoids divergent spikes dominating.
     let lossCap = Infinity;
     for (const run of this.runs) {
       if (run.visible && run.lossHistory.length > 0) {
         const initialLoss = run.lossHistory[0].loss;
-        const runCap = initialLoss * 100;
+        const runCap = initialLoss * 50;
         if (runCap < lossCap) lossCap = runCap;
       }
     }

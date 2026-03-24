@@ -286,8 +286,10 @@ export class RightChart {
       'rgb(220, 50, 50)',    // λ₁ (largest) - red
       'rgb(230, 120, 30)',   // λ₂ - orange
       'rgb(80, 180, 80)',    // λ₃ - green
+      'rgb(150, 80, 200)',   // λ₄ - purple
+      'rgb(40, 130, 180)',   // λ₅ - blue
     ];
-    const eigLabels = ['λ₁', 'λ₂', 'λ₃'];
+    const eigLabels = ['λ₁', 'λ₂', 'λ₃', 'λ₄', 'λ₅'];
 
     // Build datasets dynamically. Track indices by name.
     this.idx = {};
@@ -311,9 +313,9 @@ export class RightChart {
     for (let i = 0; i < this.kEigs; i++) {
       this.idx.eigs.push(datasets.length);
       datasets.push({
-        label: eigLabels[i],
+        label: eigLabels[i] || `λ${i + 1}`,
         data: [],
-        borderColor: eigColors[i],
+        borderColor: eigColors[i] || eigColors[0],
         borderWidth: 2,
         pointRadius: 0,
         tension: 0,
