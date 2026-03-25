@@ -104,7 +104,7 @@
 
     <figure class="tutorial-figure">
       <img src="imgs/gd_quadratic.png" alt="..." style="max-width: 50%;">
-      <figcaption>Left: For small enough step sizes (relative to the curvature of the quadratic) gradient descent steadily approaches the minimum of the quadratic. Right: If the step size is too large, the optimized parameter does not converge but instead oscillates and diverges.</figcaption>
+      <figcaption><strong>Left:</strong> For small enough step sizes (relative to the curvature of the quadratic) gradient descent steadily approaches the minimum of the quadratic. <strong>Right:</strong> If the step size is too large, the optimized parameter does not converge but instead oscillates and diverges.</figcaption>
     </figure>
 
     <p>For a multidimensional quadratic loss $L(w) = \frac{1}{2}w^\top A w$, where $A = \nabla^2 L$ is the Hessian, the update is</p>
@@ -198,7 +198,7 @@
         <img src="imgs/stable_region.png" alt="Classical picture: gradient descent stays inside the stable region" style="max-width: 40%;">
         <img src="imgs/selfstable_region.png" alt="Edge of stability: trajectory oscillates along the boundary" style="max-width: 40%;">
       </div>
-      <figcaption>Left: the classical picture — gradient descent stays comfortably inside the stable region where $\lambda_{\max} < 2/\eta$. Right: what actually happens — the trajectory reaches the boundary and oscillates along it, repeatedly exiting and being steered back in. Figures from <a href="https://centralflows.github.io/part1/">Cohen et al.</a></figcaption>
+      <figcaption><strong>Left:</strong> the classical picture — gradient descent stays comfortably inside the stable region where $\lambda_{\max} < 2/\eta$. <strong>Right:</strong> what actually happens — the trajectory reaches the boundary and oscillates along it, repeatedly exiting and being steered back in. Figures from <a href="https://centralflows.github.io/part1/">Cohen et al.</a></figcaption>
     </figure>
     
     <p class="tutorial-note"><strong>Open Question:</strong> Why do networks tend to sharpen during training? Toy counterexamples exist, but the trend is consistent enough across realistic tasks that it calls for explanation.</p>
