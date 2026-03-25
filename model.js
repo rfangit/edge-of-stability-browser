@@ -137,6 +137,13 @@ export class MLP {
             for (let i = 0; i < rows; i++) {
               a[i] = z[i] > 0 ? z[i] : 0;
             }
+          } else if (this.activation === 'gelu') {
+            // GeLU tanh approximation: 0.5 * x * (1 + tanh(√(2/π) * (x + 0.044715 * x³)))
+            const c = Math.sqrt(2 / Math.PI);
+            for (let i = 0; i < rows; i++) {
+              const x = z[i];
+              a[i] = 0.5 * x * (1 + Math.tanh(c * (x + 0.044715 * x * x * x)));
+            }
           } else {
             // tanh (default)
             for (let i = 0; i < rows; i++) {

@@ -229,6 +229,61 @@ select {
   border-radius: 0 4px 4px 0;
 }
 
+/* Accordion / collapsible sections */
+.accordion {
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  margin-bottom: 6px;
+  background: #fff;
+}
+
+.accordion + .accordion {
+  /* tighten gap between consecutive accordions */
+}
+
+.accordion summary {
+  padding: 0.6em 1em;
+  font-size: 1em;
+  font-weight: 600;
+  color: #333;
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  user-select: none;
+}
+
+.accordion summary::-webkit-details-marker {
+  display: none;
+}
+
+.accordion summary::before {
+  content: '▸';
+  font-size: 0.85em;
+  color: #999;
+  transition: transform 0.15s ease;
+  flex-shrink: 0;
+}
+
+.accordion[open] summary::before {
+  transform: rotate(90deg);
+}
+
+.accordion summary:hover {
+  background: #f8f8f8;
+  border-radius: 6px;
+}
+
+.accordion-body {
+  padding: 0.2em 1em 1em 1em;
+  border-top: 1px solid #eee;
+}
+
+.accordion-body p:first-child {
+  margin-top: 0.6em;
+}
+
 /* Figure / image placeholders */
 .tutorial-figure {
   margin: 1.8em 0;
@@ -246,8 +301,34 @@ select {
 .tutorial-figure figcaption {
   margin-top: 0.5em;
   font-size: 0.88em;
-  color: #777;
-  font-style: italic;
+  color: #555;
+  max-width: 80%;
+  margin-left: auto;
+  margin-right: auto;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.tutorial-widget figcaption {
+  margin-top: 0.5em;
+  font-size: 0.88em;
+  color: #555;
+  max-width: 80%;
+  margin-left: auto;
+  margin-right: auto;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.hero-caption {
+  margin-top: 0.5em;
+  font-size: 0.88em;
+  color: #555;
+  max-width: 80%;
+  margin-left: auto;
+  margin-right: auto;
+  line-height: 1.4;
+  text-align: center;
 }
 
 /* TODO / implementation blocks */

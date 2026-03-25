@@ -174,13 +174,28 @@ export class Trainer {
           const prevA = fwd.activations[l];
           const isRelu = model.activation === 'relu';
           const isLinear = model.activation === 'linear';
+          const isGelu = model.activation === 'gelu';
+          const geluC = Math.sqrt(2 / Math.PI);
           for (let j = 0; j < cols; j++) {
             let sum = 0;
             for (let i = 0; i < rows; i++) {
               sum += model.W[l][i][j] * dl[i];
             }
-            const a = prevA[j];
-            const dAct = isLinear ? 1 : (isRelu ? (a > 0 ? 1 : 0) : (1 - a * a));
+            let dAct;
+            if (isLinear) {
+              dAct = 1;
+            } else if (isRelu) {
+              dAct = prevA[j] > 0 ? 1 : 0;
+            } else if (isGelu) {
+              const x = fwd.preActivations[l - 1][j];
+              const u = geluC * (x + 0.044715 * x * x * x);
+              const th = Math.tanh(u);
+              const sech2 = 1 - th * th;
+              dAct = 0.5 * (1 + th) + 0.5 * x * sech2 * geluC * (1 + 3 * 0.044715 * x * x);
+            } else {
+              // tanh
+              dAct = 1 - prevA[j] * prevA[j];
+            }
             this.delta[l - 1][j] = sum * dAct;
           }
         }
@@ -280,16 +295,33 @@ export class Trainer {
           // dL/dz_{l-1} = (W[l]^T * delta[l]) ⊙ activation'(z_{l-1})
           // tanh: activation'(z) = 1 - tanh(z)^2 = 1 - a^2
           // relu: activation'(z) = 1 if a > 0, else 0
+          // gelu: activation'(z) = 0.5*(1+tanh(u)) + 0.5*x*sech²(u)*c*(1+3*0.044715*x²)
           // linear: activation'(z) = 1
           const isRelu = model.activation === 'relu';
           const isLinear = model.activation === 'linear';
+          const isGelu = model.activation === 'gelu';
+          const geluC = Math.sqrt(2 / Math.PI);
           for (let j = 0; j < prevSize; j++) {
             let sum = 0;
             for (let i = 0; i < rows; i++) {
               sum += model.W[l][i][j] * dl[i];
             }
-            const a = prevA[j];
-            const dAct = isLinear ? 1 : (isRelu ? (a > 0 ? 1 : 0) : (1 - a * a));
+            let dAct;
+            if (isLinear) {
+              dAct = 1;
+            } else if (isRelu) {
+              dAct = prevA[j] > 0 ? 1 : 0;
+            } else if (isGelu) {
+              const x = fwd.preActivations[l - 1][j];
+              const u = geluC * (x + 0.044715 * x * x * x);
+              const th = Math.tanh(u);
+              const sech2 = 1 - th * th;
+              dAct = 0.5 * (1 + th) + 0.5 * x * sech2 * geluC * (1 + 3 * 0.044715 * x * x);
+            } else {
+              // tanh
+              const a = prevA[j];
+              dAct = 1 - a * a;
+            }
             this.delta[l - 1][j] = sum * dAct;
           }
         }

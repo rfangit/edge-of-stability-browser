@@ -22,6 +22,7 @@ export class SavedRunsManager {
     this.lossChart = null;
     this.sharpnessChart = null;
     this.clipSharpness = true;
+    this.useEffectiveTime = true; // default: plot w.r.t. η·step
     this.isExpanded = false;
 
     this._initUI();
@@ -60,6 +61,38 @@ export class SavedRunsManager {
         this._updateCharts();
       });
     }
+
+    // X-axis mode toggle (step vs η·step)
+    const xAxisToggle = document.getElementById('savedRunsXAxisToggle');
+    if (xAxisToggle) {
+      xAxisToggle.querySelectorAll('a').forEach(link => {
+        link.addEventListener('click', (e) => {
+          e.preventDefault();
+          this.useEffectiveTime = link.dataset.mode === 'teff';
+          xAxisToggle.querySelectorAll('a').forEach(a => a.classList.remove('active'));
+          link.classList.add('active');
+          // Update x-axis labels
+          const xLabel = this.useEffectiveTime ? 'η·step' : 'step';
+          const lossLabel = document.getElementById('savedLossXLabel');
+          const sharpLabel = document.getElementById('savedSharpnessXLabel');
+          if (lossLabel) lossLabel.textContent = xLabel;
+          if (sharpLabel) sharpLabel.textContent = xLabel;
+          this._updateCharts();
+        });
+      });
+    }
+
+    // Upload run from file
+    const uploadBtn = document.getElementById('uploadRunButton');
+    const uploadInput = document.getElementById('uploadRunInput');
+    if (uploadBtn && uploadInput) {
+      uploadBtn.addEventListener('click', () => uploadInput.click());
+      uploadInput.addEventListener('change', () => {
+        const file = uploadInput.files[0];
+        if (file) this._handleUploadedFile(file);
+        uploadInput.value = ''; // reset so same file can be re-uploaded
+      });
+    }
   }
 
   // ---------- Lazy chart creation ----------
@@ -79,10 +112,16 @@ export class SavedRunsManager {
       options: baseChartOptions()
     });
 
+    const sharpOptions = baseChartOptions();
+    sharpOptions.plugins.legend.labels.filter = function(legendItem, chartData) {
+      // Hide datasets with no label (threshold lines)
+      const ds = chartData.datasets[legendItem.datasetIndex];
+      return ds && ds.label;
+    };
     this.sharpnessChart = new Chart(sharpCanvas.getContext('2d'), {
       type: 'line',
       data: { datasets: [] },
-      options: baseChartOptions()
+      options: sharpOptions
     });
   }
 
@@ -140,15 +179,19 @@ export class SavedRunsManager {
     const dimColor = (color) => color.replace('rgb(', 'rgba(').replace(')', ', 0.1)');
 
     // --- Loss chart ---
-    const lossDatasets = this.runs.map(run => ({
-      label: run.label,
-      data: run.lossHistory.map(p => ({ x: p.iteration, y: p.loss })),
-      borderColor: run.visible ? run.color : dimColor(run.color),
-      backgroundColor: 'transparent',
-      borderWidth: run.visible ? 2 : 1,
-      pointRadius: 0,
-      tension: 0
-    }));
+    const lossDatasets = this.runs.map(run => {
+      const eta = run.params.eta || 1;
+      const xScale = this.useEffectiveTime ? eta : 1;
+      return {
+        label: run.label,
+        data: run.lossHistory.map(p => ({ x: p.iteration * xScale, y: p.loss })),
+        borderColor: run.visible ? run.color : dimColor(run.color),
+        backgroundColor: 'transparent',
+        borderWidth: run.visible ? 2 : 1,
+        pointRadius: 0,
+        tension: 0
+      };
+    });
     this.lossChart.data.datasets = lossDatasets;
 
     let xMax = 0, yMax = 0;
@@ -163,8 +206,11 @@ export class SavedRunsManager {
       }
     }
     for (const run of this.runs) {
+      const eta = run.params.eta || 1;
+      const xScale = this.useEffectiveTime ? eta : 1;
       for (const p of run.lossHistory) {
-        if (p.iteration > xMax) xMax = p.iteration;
+        const xVal = p.iteration * xScale;
+        if (xVal > xMax) xMax = xVal;
         if (run.visible && p.loss > yMax && p.loss <= lossCap) yMax = p.loss;
       }
     }
@@ -190,11 +236,12 @@ export class SavedRunsManager {
       const threshold = 2 / eta;
       if (run.visible && threshold > syMax) syMax = threshold;
       const color = run.visible ? run.color : dimColor(run.color);
+      const xScale = this.useEffectiveTime ? eta : 1;
 
       if (run.eigenvalueHistory.length > 0) {
         const eigData = run.eigenvalueHistory.map(p => {
           const k = p.eigs.length;
-          return { x: p.iteration, y: p.eigs[k - 1] };
+          return { x: p.iteration * xScale, y: p.eigs[k - 1] };
         });
         sharpDatasets.push({
           label: run.label,
@@ -219,7 +266,6 @@ export class SavedRunsManager {
 
       if (sxMax > 0) {
         sharpDatasets.push({
-          label: `2/η (${eta})`,
           data: [{ x: 0, y: threshold }, { x: sxMax, y: threshold }],
           borderColor: color,
           backgroundColor: 'transparent',
@@ -343,11 +389,34 @@ export class SavedRunsManager {
   // ---------- Download ----------
 
   _downloadRun(run) {
-    const loss = run.lossHistory.map(p => p.loss);
-    const testLoss = run.testLossHistory.length > 0
+    const MAX_EXPORT_POINTS = 20000;
+
+    let loss = run.lossHistory.map(p => p.loss);
+    let testLoss = run.testLossHistory.length > 0
       ? run.testLossHistory.map(p => p.loss)
       : [];
-    const eigenvalues = run.eigenvalueHistory.map(p => p.eigs);
+    let eigenvalues = run.eigenvalueHistory.map(p => p.eigs);
+
+    // Uniform stride to cap at MAX_EXPORT_POINTS.
+    // Same stride for all arrays so they stay aligned.
+    const maxLen = Math.max(loss.length, eigenvalues.length);
+    if (maxLen > MAX_EXPORT_POINTS) {
+      const stride = Math.ceil(maxLen / MAX_EXPORT_POINTS);
+      loss = loss.filter((_, i) => i % stride === 0);
+      if (testLoss.length > 0) {
+        testLoss = testLoss.filter((_, i) => i % stride === 0);
+      }
+      eigenvalues = eigenvalues.filter((_, i) => i % stride === 0);
+    }
+
+    // Reduce precision — 6 significant figures is more than enough for plotting
+    // and roughly halves the JSON filesize
+    const round6 = (v) => parseFloat(v.toPrecision(6));
+    loss = loss.map(round6);
+    if (testLoss.length > 0) {
+      testLoss = testLoss.map(round6);
+    }
+    eigenvalues = eigenvalues.map(eigs => eigs.map(round6));
 
     const data = {
       savedAt: run.savedAt,
@@ -367,6 +436,128 @@ export class SavedRunsManager {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  }
+
+  // ---------- Upload from file ----------
+
+  /**
+   * Validate that parsed JSON has the expected structure for a run.
+   * Returns { valid: true, data } or { valid: false, error: string }.
+   */
+  _validateRunData(data) {
+    if (typeof data !== 'object' || data === null) {
+      return { valid: false, error: 'File is not a JSON object.' };
+    }
+    if (!data.params || typeof data.params !== 'object') {
+      return { valid: false, error: 'Missing "params" field.' };
+    }
+    if (typeof data.params.eta !== 'number' || data.params.eta <= 0) {
+      return { valid: false, error: 'Missing or invalid "params.eta" (must be a positive number).' };
+    }
+    if (!Array.isArray(data.loss) || data.loss.length === 0) {
+      return { valid: false, error: 'Missing or empty "loss" array.' };
+    }
+    // Check that loss values are finite numbers
+    for (let i = 0; i < Math.min(data.loss.length, 10); i++) {
+      if (typeof data.loss[i] !== 'number' || !isFinite(data.loss[i])) {
+        return { valid: false, error: `Invalid loss value at index ${i}.` };
+      }
+    }
+    if (data.eigenvalues && !Array.isArray(data.eigenvalues)) {
+      return { valid: false, error: '"eigenvalues" must be an array if present.' };
+    }
+    return { valid: true, data };
+  }
+
+  /**
+   * Handle a file uploaded via the file input.
+   * @param {File} file
+   */
+  _handleUploadedFile(file) {
+    const statusEl = document.getElementById('uploadRunStatus');
+    const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+
+    if (file.size > MAX_FILE_SIZE) {
+      if (statusEl) statusEl.textContent = `File too large (${(file.size / 1024 / 1024).toFixed(1)}MB, max 5MB).`;
+      return;
+    }
+
+    if (!file.name.endsWith('.json')) {
+      if (statusEl) statusEl.textContent = 'Please upload a .json file.';
+      return;
+    }
+
+    if (statusEl) statusEl.textContent = 'loading...';
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      let data;
+      try {
+        data = JSON.parse(e.target.result);
+      } catch (err) {
+        if (statusEl) statusEl.textContent = 'Invalid JSON file.';
+        return;
+      }
+
+      const validation = this._validateRunData(data);
+      if (!validation.valid) {
+        if (statusEl) statusEl.textContent = validation.error;
+        return;
+      }
+
+      // Build the run object (same logic as loadRunsFromFiles)
+      this.runCounter++;
+      const color = RUN_COLORS[(this.runCounter - 1) % RUN_COLORS.length];
+      const p = data.params || {};
+      const dims = p.hiddenDims ? p.hiddenDims.join('+') : '?';
+      const label = data.name
+        ? `Run ${this.runCounter}: ${data.name}`
+        : `Run ${this.runCounter}: ${p.activation || '?'}, [${dims}], η=${p.eta || '?'}`;
+
+      const totalSteps = data.totalSteps || (data.loss || []).length;
+      const lossArr = data.loss || [];
+      const eigArr = data.eigenvalues || [];
+      const lossStride = lossArr.length > 1 ? (totalSteps - 1) / (lossArr.length - 1) : 1;
+      const eigStride = eigArr.length > 1 ? (totalSteps - 1) / (eigArr.length - 1) : 1;
+
+      const run = {
+        index: this.runCounter,
+        label,
+        color,
+        visible: true,
+        params: p,
+        lossHistory: lossArr.map((loss, i) => ({ iteration: Math.round(1 + i * lossStride), loss })),
+        testLossHistory: (data.testLoss || []).map((loss, i) => ({ iteration: Math.round(1 + i * lossStride), loss })),
+        eigenvalueHistory: eigArr.map((eigs, i) => ({
+          iteration: Math.round(1 + i * eigStride),
+          eigs: Array.isArray(eigs) ? eigs : [eigs]
+        })),
+        savedAt: data.savedAt || new Date().toISOString(),
+        totalSteps: totalSteps
+      };
+
+      this.runs.push(run);
+
+      // Expand panel and render
+      this._expandAndScroll();
+      setTimeout(() => {
+        this._ensureCharts();
+        this._updateCharts();
+        this._updateRunList();
+        this._updateToggleLabel();
+      }, 60);
+
+      if (statusEl) {
+        statusEl.textContent = `✓ loaded (${run.totalSteps} steps)`;
+        setTimeout(() => { statusEl.textContent = ''; }, 3000);
+      }
+    };
+
+    reader.onerror = () => {
+      if (statusEl) statusEl.textContent = 'Error reading file.';
+    };
+
+    reader.readAsText(file);
   }
 
   // ---------- Load from JSON files ----------
@@ -390,7 +581,17 @@ export class SavedRunsManager {
 
         const p = data.params || {};
         const dims = p.hiddenDims ? p.hiddenDims.join('+') : '?';
-        const label = `Run ${this.runCounter}: ${p.activation || '?'}, [${dims}], η=${p.eta || '?'}`;
+        const label = data.name
+          ? `Run ${this.runCounter}: ${data.name}`
+          : `Run ${this.runCounter}: ${p.activation || '?'}, [${dims}], η=${p.eta || '?'}`;
+
+        const totalSteps = data.totalSteps || (data.loss || []).length;
+        const lossArr = data.loss || [];
+        const eigArr = data.eigenvalues || [];
+
+        // Compute stride: if the file was downsampled, totalSteps > array length
+        const lossStride = lossArr.length > 1 ? (totalSteps - 1) / (lossArr.length - 1) : 1;
+        const eigStride = eigArr.length > 1 ? (totalSteps - 1) / (eigArr.length - 1) : 1;
 
         const run = {
           index: this.runCounter,
@@ -398,14 +599,14 @@ export class SavedRunsManager {
           color,
           visible: true,
           params: p,
-          lossHistory: (data.loss || []).map((loss, i) => ({ iteration: i + 1, loss })),
-          testLossHistory: (data.testLoss || []).map((loss, i) => ({ iteration: i + 1, loss })),
-          eigenvalueHistory: (data.eigenvalues || []).map((eigs, i) => ({
-            iteration: i + 1,
+          lossHistory: lossArr.map((loss, i) => ({ iteration: Math.round(1 + i * lossStride), loss })),
+          testLossHistory: (data.testLoss || []).map((loss, i) => ({ iteration: Math.round(1 + i * lossStride), loss })),
+          eigenvalueHistory: eigArr.map((eigs, i) => ({
+            iteration: Math.round(1 + i * eigStride),
             eigs: Array.isArray(eigs) ? eigs : [eigs]
           })),
           savedAt: data.savedAt || new Date().toISOString(),
-          totalSteps: data.totalSteps || (data.loss || []).length
+          totalSteps: totalSteps
         };
 
         this.runs.push(run);

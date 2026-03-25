@@ -375,7 +375,7 @@ const batchSizeValue = document.getElementById('batchSizeValue');
 function initTrainingControls() {
   const etaSliderVal = valueToLogSlider(appState.eta, 0.01, 10);
   etaSlider.value = etaSliderVal;
-  etaValue.textContent = appState.eta.toPrecision(3);
+  etaValue.textContent = parseFloat(appState.eta.toPrecision(4));
 
   const bsSliderVal = valueToLogSlider(appState.batchSize, 1, 1000);
   batchSizeSlider.value = bsSliderVal;
@@ -383,8 +383,8 @@ function initTrainingControls() {
 }
 
 etaSlider.addEventListener('input', () => {
-  appState.eta = logSliderToValue(parseFloat(etaSlider.value), 0.01, 10);
-  etaValue.textContent = appState.eta.toPrecision(3);
+  appState.eta = parseFloat(logSliderToValue(parseFloat(etaSlider.value), 0.01, 10).toPrecision(4));
+  etaValue.textContent = appState.eta;
   appState.save();
 });
 
@@ -509,6 +509,14 @@ function renderNetworkViz() {
 const startPauseButton = document.getElementById('startPauseButton');
 startPauseButton.addEventListener('click', async () => {
   if (!simulation.isRunning) {
+    // If simulation has a model, it's just paused — resume it
+    if (simulation.model) {
+      simulation.start();
+      startPauseButton.textContent = 'pause';
+      return;
+    }
+
+    // Otherwise, initialize a fresh simulation
     const task = TASKS[appState.task];
 
     // Hide any previous error message
@@ -724,7 +732,7 @@ function initialRender() {
     dataUrl: 'runs/title_plot/run.json',
     lossCanvasId: 'heroLossChart',
     sharpCanvasId: 'heroSharpnessChart',
-    revealDuration: 10,
+    revealDuration: 12,
     pauseDuration: 3
   });
   heroPlot.init();
