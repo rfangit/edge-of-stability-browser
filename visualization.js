@@ -262,6 +262,171 @@ export class LossChart {
 }
 
 // ============================================================================
+// GRAD PROJECTION CHART - Cosine similarity + gradient norm post-EoS capture
+// ============================================================================
+// Only receives data after the top eigenvector has been captured (when sharpness
+// first enters the proximity band around 2/η). Before that, the chart sits empty
+// with a placeholder message. Once data arrives it plots two series:
+//   - projection  (cosine similarity, left y-axis, [-1, 1])
+//   - gradNorm    (gradient ‖g‖, right y-axis)
+
+export class GradProjectionChart {
+  /**
+   * @param {string} canvasId
+   * @param {object} [options]
+   * @param {string}  [options.placeholderText] - text shown before capture
+   */
+  constructor(canvasId, options = {}) {
+    this.canvasId = canvasId;
+    this.placeholderText = options.placeholderText || 'Waiting for sharpness to reach 2/η…';
+
+    this.logScaleX = false;
+    this.useEffectiveTime = false;
+    this.eta = 0.01;
+
+    // Two datasets: cosine similarity (left axis) and grad norm (right axis)
+    const datasets = [
+      {
+        label: 'cos(∇L, v̂)',
+        data: [],
+        borderColor: 'rgb(100, 60, 200)',
+        backgroundColor: 'rgba(100, 60, 200, 0.08)',
+        borderWidth: 1.5,
+        pointRadius: 0,
+        tension: 0,
+        yAxisID: 'yLeft',
+        order: 1
+      },
+      {
+        label: '‖∇L‖',
+        data: [],
+        borderColor: 'rgb(200, 120, 30)',
+        backgroundColor: 'rgba(200, 120, 30, 0.08)',
+        borderWidth: 1.5,
+        pointRadius: 0,
+        tension: 0,
+        yAxisID: 'yRight',
+        order: 2,
+        hidden: true
+      }
+    ];
+
+    const opts = baseChartOptions();
+
+    // Override scales for dual-axis layout
+    opts.scales = {
+      x: {
+        type: 'linear',
+        min: 0,
+        ticks: {
+          maxRotation: 0,
+          font: { size: 14, ...CHART_FONT },
+          callback: function(value) { return formatTickLabel(value); }
+        }
+      },
+      yLeft: {
+        type: 'linear',
+        position: 'left',
+        min: -1,
+        max: 1,
+        ticks: {
+          font: { size: 14, ...CHART_FONT },
+          callback: function(value) { return formatTickLabel(value); }
+        },
+        grid: { drawOnChartArea: true }
+      },
+      yRight: {
+        type: 'linear',
+        position: 'right',
+        beginAtZero: true,
+        ticks: {
+          font: { size: 14, ...CHART_FONT },
+          callback: function(value) { return formatTickLabel(value); }
+        },
+        grid: { drawOnChartArea: false }
+      }
+    };
+
+    const placeholderText = this.placeholderText;
+    const placeholderPlugin = {
+      id: 'gradProjectionPlaceholder',
+      afterDraw: (chart) => {
+        if (chart.data.datasets[0].data.length > 0) return;
+        const { ctx: c, chartArea } = chart;
+        if (!chartArea) return;
+        c.save();
+        c.textAlign = 'center';
+        c.textBaseline = 'middle';
+        c.fillStyle = '#aaa';
+        c.font = `13px Monaco, Consolas, monospace`;
+        const cx = (chartArea.left + chartArea.right) / 2;
+        const cy = (chartArea.top + chartArea.bottom) / 2;
+        c.fillText(placeholderText, cx, cy);
+        c.restore();
+      }
+    };
+
+    const ctx = document.getElementById(canvasId).getContext('2d');
+    this.chart = new Chart(ctx, {
+      type: 'line',
+      data: { datasets },
+      options: opts,
+      plugins: [placeholderPlugin]
+    });
+    this.chart.update('none');
+  }
+
+  setLogScaleX(useLogX) {
+    this.logScaleX = useLogX;
+    this.chart.options.scales.x.type = useLogX ? 'logarithmic' : 'linear';
+    this.chart.options.scales.x.min = useLogX ? 1 : 0;
+    this.chart.update('none');
+  }
+
+  setEffectiveTime(useEffTime, eta) {
+    this.useEffectiveTime = useEffTime;
+    this.eta = eta;
+  }
+
+  /**
+   * @param {Array<{iteration: number, projection: number, gradNorm: number}>} history
+   * @param {number} eta
+   */
+  update(history, eta = this.eta) {
+    if (!history || history.length === 0) return;
+    this.eta = eta;
+
+    const toX = (iter) => this.useEffectiveTime ? iter * this.eta : iter;
+
+    this.chart.data.datasets[0].data = history.map(p => ({ x: toX(p.iteration), y: p.projection }));
+    this.chart.data.datasets[1].data = history.map(p => ({ x: toX(p.iteration), y: p.gradNorm }));
+
+    // X-axis: start from the first recorded iteration, not zero
+    const firstX = toX(history[0].iteration);
+    const lastX = toX(history[history.length - 1].iteration);
+    this.chart.options.scales.x.min = firstX;
+    this.chart.options.scales.x.max = lastX;
+
+    // Right y-axis max (grad norm): auto with 20% headroom
+    let maxNorm = 0;
+    for (const p of history) {
+      if (p.gradNorm > maxNorm) maxNorm = p.gradNorm;
+    }
+    this.chart.options.scales.yRight.max = maxNorm * 1.2 || 1;
+
+    this.chart.update('none');
+  }
+
+  clear() {
+    this.chart.data.datasets[0].data = [];
+    this.chart.data.datasets[1].data = [];
+    this.chart.options.scales.x.min = 0;
+    this.chart.options.scales.x.max = undefined;
+    this.chart.update('none');
+  }
+}
+
+// ============================================================================
 // RIGHT CHART - Hessian eigenvalues + 2/η stability threshold
 // ============================================================================
 
@@ -425,6 +590,98 @@ export class RightChart {
     for (const ds of this.chart.data.datasets) {
       ds.data = [];
     }
+    this.chart.options.scales.x.max = undefined;
+    this.chart.update('none');
+  }
+}
+
+// ============================================================================
+// LINE CHART — generic single-series line plot against iteration
+// ============================================================================
+// Used by the deep scalar network widget (and any future widget that needs a
+// simple companion chart). Intentionally minimal: one series, optional
+// horizontal reference line, optional log y-axis.
+//
+// Options:
+//   label      string   — dataset legend label
+//   color      string   — CSS color for the line
+//   logY       bool     — log scale on y-axis (default false)
+//   refLine    number   — if set, draws a dashed horizontal line at this value
+//   refLabel   string   — legend label for the ref line (default '2/η')
+//   yLabel     string   — y-axis label text drawn via plugin (optional)
+
+export class LineChart {
+  constructor(canvasId, options = {}) {
+    this.logY     = options.logY     || false;
+    this.refLine  = options.refLine  !== undefined ? options.refLine : null;
+    this.refLabel = options.refLabel || '2/η';
+
+    // Create a ref line dataset if either refLine value or refLabel was supplied
+    this.hasRefLine = options.refLine !== undefined || options.refLabel !== undefined;
+
+    const datasets = [
+      {
+        label: options.label || 'value',
+        data: [],
+        borderColor: options.color || 'rgb(40, 130, 130)',
+        backgroundColor: 'rgba(0,0,0,0)',
+        borderWidth: 2,
+        pointRadius: 0,
+        tension: 0,
+        order: 1
+      }
+    ];
+
+    if (this.hasRefLine) {
+      datasets.push({
+        label: this.refLabel,
+        data: [],
+        borderColor: 'rgb(0,0,0)',
+        borderWidth: 2,
+        borderDash: [8, 4],
+        pointRadius: 0,
+        tension: 0,
+        order: 0
+      });
+    }
+
+    const opts = baseChartOptions();
+    if (this.logY) {
+      opts.scales.y.type = 'logarithmic';
+      opts.scales.y.beginAtZero = false;
+    }
+
+    const ctx = document.getElementById(canvasId).getContext('2d');
+    this.chart = new Chart(ctx, { type: 'line', data: { datasets }, options: opts });
+  }
+
+  /**
+   * @param {Array<{iteration: number, value: number}>} history
+   * @param {number} [refLineValue] — updated reference line value (e.g. 2/η changes with η)
+   */
+  update(history, refLineValue) {
+    if (!history || history.length === 0) return;
+
+    this.chart.data.datasets[0].data = history.map(p => ({ x: p.iteration, y: p.value }));
+
+    // Update reference line if present
+    if (this.hasRefLine && refLineValue !== undefined) {
+      const firstX = history[0].iteration;
+      const lastX  = history[history.length - 1].iteration;
+      this.chart.data.datasets[1].data = [{ x: firstX, y: refLineValue }, { x: lastX, y: refLineValue }];
+    }
+
+    this.chart.options.scales.x.max = history[history.length - 1].iteration;
+    this.chart.update('none');
+  }
+
+  /** Update only the reference line value without redrawing series data */
+  setRefLine(value) {
+    this.refLine = value;
+  }
+
+  clear() {
+    for (const ds of this.chart.data.datasets) ds.data = [];
     this.chart.options.scales.x.max = undefined;
     this.chart.update('none');
   }

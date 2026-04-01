@@ -72,6 +72,17 @@
       <div class="hero-caption">An 11-layer VGG trained on 5000 CIFAR-10 samples with learning rate η&nbsp;=&nbsp;0.01. Loss decreases while sharpness rises to meet the stability threshold 2/η, then oscillates around it.</div>
     </div>
 
+    <p> Although the general behaviour of neural network training is complex and nonlinear, focusing on the right aspects of the training dynamics can allow us to make general statements about how training behaves, and derive useful intuition on the role of hyperparameters. In this introduction, we'll discuss one such example: the <strong>edge of stability</strong> phenomenon, which is closely linked with the learning rate.</p>
+      
+    <p> We can see this phenomenon above: while the exact training curve is complex, we are able to derive a condition on the curvature of the loss landscape (right dashed line) that predicts when the training dynamics become unstable, resulting in spiky behaviour on the training loss curve.</p>
+
+    <!--
+      we see the curvature of the loss landscape steadily increases as we train our neural network. When it hits a critical threshold our loss no longer decreases smoothly but instead becomes very unstable, with sudden spikes in the loss. However, the loss continues to go down over time. This is called the <strong>edge of stability</strong>, which often occurs in deep learning.</p>
+
+
+    Training a neural network is a complex nonlinear optimization problem, dependent on aspects of the training data and architecture that we don't fully understand. Despite this apparent complexity, it turns out there are strong general statements that we can make about the dynamics of training that can be used to make better decisions on how to optimize. In this introduction, we'll discuss one such example: the edge of stability phenomenon.
+    
+
     <p> In the above plot, we see the curvature of the loss landscape steadily increases as we train our neural network. When it hits a critical threshold our loss no longer decreases smoothly but instead becomes very unstable, with sudden spikes in the loss. However, the loss continues to go down over time. This is called the <strong>edge of stability</strong>, which often occurs in deep learning.</p>
       
     <p>Traditional analyses of optimization can't explain this behaviour. In this tutorial, we'll see:</p>
@@ -80,9 +91,14 @@
       <li>what progress we've made towards understanding</li>
       <li>what open questions remain</li>
     </ul>
+    -->
     <p>You'll be training neural networks directly in the browser as we go, and can play around with the parameters and more complex tasks for yourself at the end.</p>
 
     <p class="tutorial-note"><strong>Note:</strong> We'll use a simple task throughout to keep things fast. However, the phenomenon we discuss is general and appears to hold for more complex models encountered in practice. We'll include evidence of this from the lierature, and you can try slower, more complex tasks at the end.</p>
+
+    <h2>What is the Edge of Stability?</h2>
+
+    
 
     <!-- ==================== SECTION: Gradient Descent ==================== -->
 
@@ -206,11 +222,60 @@
     <p>While we don't understand why networks tend to sharpen, we do understand what counteracts this tendency at the edge of stability. Up until now we've considered the second order expansion of our training loss, which yields a term that results in oscillations. It turns out that a third order expansion yields a term proportional to $\nabla \lambda_{\max}$ - the gradient of the sharpness. This term is proportional to the strength of the oscillations. <sup><a href="#ref-damian2022">[2]</a></sup></p>
 
     <p>Thus gradient descent on our training loss implicitly performs gradient descent on the sharpness as well, with strength proportional to the oscillations. This is how networks self-stabilize: oscillations at the edge of stability automatically push the sharpness back down.</p>
-    
-<!--
-The third-order expansion of our training loss shows that oscillations along the top Hessian eigenvector automatically trigger a reduction of the top Hessian eigenvalue<sup><a href="#ref-damian2022">[2]</a></sup> (colloquially, this performs gradient descent not on the loss, but the sharpness). The sharpness naturally decreases, forcing the network back into the region of stability.</p>
 
-    <p class="tutorial-note"><strong>Note:</strong> Need to expand on this some more. Some equations, hopefully not too many definitions.</p>-->
+    <p>We can see this mechanism directly. The third plot below tracks how much each gradient step points along the top Hessian eigenvector &mdash; the direction of maximum curvature. Once sharpness nears $2/\eta$ (the eigenvector is locked in at that moment), watch for the gradient to repeatedly alternate sign along this direction: that oscillation is exactly what drives the sharpness back down each time it overshoots.</p>
+
+    <!-- Eigenvector Widget: Loss + Sharpness + Gradient Projection
+         Task: Chebyshev degree 6, 20 points, full-batch (CHEBYSHEV_DEFAULTS)
+         Model: tanh, 2 hidden layers (30 + 20), lr = 0.2, seed 0
+         Hessian: kEigs=1, sharpnessProximityThreshold=0.05
+         Charts:
+           1. train loss (no test, no EMA)
+           2. sharpness (1 eigenvalue + 2/η)
+           3. gradient projection: cosine similarity cos(∇L, v̂) [left axis]
+                                   + grad norm ‖∇L‖ [right axis]
+              — empty until eigenvector is captured
+    -->
+    <div class="tutorial-widget">
+      <div class="tutorial-widget-controls">
+        <button id="eigenvector-start" class="sim-button">start</button>
+        <button id="eigenvector-reset" class="sim-button">reset</button>
+        <span id="eigenvector-info" class="tutorial-widget-info"></span>
+      </div>
+      <div class="tutorial-widget-charts">
+        <div class="tutorial-widget-chart">
+          <div class="plot-box">
+            <div class="plot-content">
+              <canvas id="eigenvector-loss" class="plot-canvas"></canvas>
+              <div class="y-axis-label y-axis-label-loss">loss $\mathcal{L}$</div>
+              <div class="x-axis-label">step</div>
+            </div>
+          </div>
+        </div>
+        <div class="tutorial-widget-chart">
+          <div class="plot-box">
+            <div class="plot-content">
+              <canvas id="eigenvector-sharpness" class="plot-canvas"></canvas>
+              <div class="y-axis-label y-axis-label-norms">sharpness</div>
+              <div class="x-axis-label">step</div>
+            </div>
+          </div>
+        </div>
+        <div class="tutorial-widget-chart">
+          <div class="plot-box">
+            <div class="plot-content">
+              <canvas id="eigenvector-projection" class="plot-canvas"></canvas>
+              <div class="y-axis-label" style="left: -42px;">$\cos(\nabla\mathcal{L},\,\hat{v})$</div>
+              <div class="x-axis-label">step</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div id="eigenvector-capture-info" class="eigenvector-capture-info"></div>
+      <figcaption style="margin-top:0.6em; font-size:0.88em; color:#555; text-align:center;">
+        The third plot shows the cosine similarity between the gradient and the top Hessian eigenvector $\hat{v}$ (purple, left axis) and the gradient norm $\|\nabla\mathcal{L}\|$ (orange, right axis). Both are recorded only after the eigenvector is locked in. Rapid sign flips in the cosine similarity reflect the oscillation that implicitly reduces sharpness.
+      </figcaption>
+    </div>
 
     <p>These two effects also occur for other eigenvalues - they progressively sharpen, until they reach the threshold and self-stabilize. When multiple eigenvalues are at the edge simultaneously, the training loss becomes extremely chaotic. You'll see this in the next experiment, which tracks three eigenvalues at once.</p>
       
@@ -326,43 +391,6 @@ The third-order expansion of our training loss shows that oscillations along the
         </div>
       </div>
     </details>
-      
-    <details class="accordion">
-      <summary>Activation Function</summary>
-      <div class="accordion-body">
-        <p>Throughout this tutorial, we've focused on tanh nonlinearities even though ReLU is more common in practice. There are two reasons:</p>
-
-        <ul>
-          <li>ReLU networks have more intense oscillations at the edge of stability, with a critical threshold a little lower than the predicted $2/\eta$.</li>
-          <li>ReLU also results in unnatural spikes in sharpness in our code.</li>
-        </ul>
-
-        <p>These appear to be linked to the non-smoothness of ReLU. For the former, the local dynamics predicted by a quadratic approximation become less accurate, so the critical threshold is not as clear. For the latter, this is a consequence of our algorithm for calculating sharpness, which we choose for speed but not robustness to non-smoothness. See <a href="#footnote-hessian">this footnote</a> for details on our implementation.</p>
-        
-        <p>Aside from these details related to the non-smooth nature of ReLU, the effects of the choice of nonlinear activation are unknown. We note that progressive sharpening and edge of stability behavior can appear in deep linear networks.</p>
-
-        <div class="preset-buttons">
-          <button class="load-runs-button" data-load-runs="runs/activation_fn/gelu_relu_tanh/chebyshev_tanh_full.json,runs/activation_fn/gelu_relu_tanh/chebyshev_gelu_full.json">Tanh vs GeLU (Full)</button>
-          <button class="load-runs-button" data-load-runs="runs/activation_fn/gelu_relu_tanh/chebyshev_tanh_lr02.json,runs/activation_fn/gelu_relu_tanh/chebyshev_gelu_lr02.json,runs/activation_fn/gelu_relu_tanh/chebyshev_relu_lr02.json">Tanh vs GeLU vs ReLU (LR 0.2)</button>
-        </div>
-        <div class="preset-buttons">
-          <button class="load-runs-button" data-load-runs="runs/deep_linear/deeplinear_eos.json,runs/deep_linear/deeplinear_no_eos.json">Deep Linear Network</button>
-        </div>
-        <p class="tutorial-note"><strong>Open Question:</strong> Can we prove the critical threshold for ReLU is somewhat lower? Eg, maybe an argument related to Jensen's inequality, since it's a convex function?</p>
-        <p class="tutorial-note"><strong>Open Question:</strong> How important is the choice of nonlinearity? Although deep linear networks show an increase in sharpness, it is only in the small initialization regime and occurs very sporadically. Do these insights apply to nonlinear networks, which sharpen more gradually?</p>
-      </div>
-    </details>
-
-    <details class="accordion">
-      <summary>Behavior of Different Eigenvalues</summary>
-      <div class="accordion-body">
-        <p>We saw many eigenvalues can reach the critical threshold and self-stabilize. In the example tasks prepared, we find cases where the third eigenvalue sharpens more slowly than the rest, and also cases where the eigenvalues sharpen together.</p> 
-        
-        <p>In the case of deep linear networks and small initialization, eigenvalue behavior is also closely linked to the known dynamics of the singular values.</p>
-          
-        <p class="tutorial-note"><strong>Open Question:</strong> What can we say about the general behaviour of eigenvalues? When do they share similar behaviour, and how can we interpret multiple eigenvalues sharpening? Is it related to the task complexity?</p>
-      </div>
-    </details>
 
     <details class="accordion">
       <summary>Other Optimizers</summary>
@@ -391,24 +419,6 @@ The third-order expansion of our training loss shows that oscillations along the
         </div>
 
         <p class="tutorial-note"><strong>Open Question:</strong> How does SGD affect the edge of stability behavior and progressive sharpening?</p>
-      </div>
-    </details>
-
-    <details class="accordion">
-      <summary>Datasets and Architectures</summary>
-      <div class="accordion-body">
-        <p>Progressive sharpening and edge of stability dynamics can be observed in a large variety of problems. Examples of known cases include image classification on CIFAR-10 with CNNs, ResNet, ViT, and sequence models on a synthetic sorting task with LSTM, Transformer, and Mamba.<sup><a href="#ref-cohen2024">[3]</a></sup> The exact degree of progressive sharpening and the initial sharpness seem to vary across datasets. </p>
-        
-        <p class="tutorial-note"><strong>Open Question:</strong> What is the role of datasets in progressive sharpening? In some datasets, there is a slight decrease in sharpness towards the beginning - what causes this effect?</p>
-        <p class="tutorial-note"><strong>Open Question:</strong> Do all architectures exhibit progressive sharpening?</p>
-        <p class="tutorial-note"><strong>Open Question:</strong> In the original paper on EOS, they noted that for CIFAR-10 more progressive sharpening is observed when the dataset size increases. Does this hold in general?</p>
-
-        <!--
-        <p>The effect of dataset size has also been studied, indicating that changes in sharpness are more pronounced for larger datasets. As an example, we compare runs with different amounts of training points.</p>-->
-
-        <!--
-        <p class="tutorial-note"><strong>Note:</strong> Some papers to reference with interesting plots to show here would be nice.</p>
-      -->
       </div>
     </details>
 

@@ -58,6 +58,13 @@ export class Trainer {
     for (let l = 0; l < model.numLayers; l++) {
       this.delta.push(new Array(model.layerSizes[l + 1]).fill(0));
     }
+
+    // The flat gradient vector from the most recent step(), in the same
+    // parameter order as hessian.js flattenParams / computeGradientFlat.
+    // Null until the first step() call. Used externally (e.g. by Simulation)
+    // to project the gradient update onto a stored eigenvector without an
+    // extra backward pass.
+    this.lastGradFlat = null;
   }
 
   /** Fisher-Yates shuffle of this.indices */
@@ -328,15 +335,37 @@ export class Trainer {
       }
     }
 
-    // 4. Average gradients and update parameters
+    // 4. Average gradients, store the flat gradient, then update parameters
+    //    lastGradFlat is η-scaled so it equals the actual weight *update* vector
+    //    (Δθ = −η·g), matching what Simulation uses for projection.
+    const flatGrad = [];
     for (let l = 0; l < numLayers; l++) {
       const rows = model.W[l].length;
       const cols = model.W[l][0].length;
       for (let i = 0; i < rows; i++) {
         this.gradB[l][i] /= n;
-        model.b[l][i] -= this.eta * this.gradB[l][i];
         for (let j = 0; j < cols; j++) {
           this.gradW[l][i][j] /= n;
+        }
+      }
+      for (let i = 0; i < rows; i++) {
+        for (let j = 0; j < cols; j++) {
+          flatGrad.push(this.gradW[l][i][j]);
+        }
+      }
+      for (let i = 0; i < rows; i++) {
+        flatGrad.push(this.gradB[l][i]);
+      }
+    }
+    this.lastGradFlat = flatGrad;
+
+    // Apply the update: θ ← θ − η·g
+    for (let l = 0; l < numLayers; l++) {
+      const rows = model.W[l].length;
+      const cols = model.W[l][0].length;
+      for (let i = 0; i < rows; i++) {
+        model.b[l][i] -= this.eta * this.gradB[l][i];
+        for (let j = 0; j < cols; j++) {
           model.W[l][i][j] -= this.eta * this.gradW[l][i][j];
         }
       }

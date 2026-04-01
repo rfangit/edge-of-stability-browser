@@ -6,7 +6,7 @@
 // classes as the main playground, but with hardcoded parameters.
 
 import { Simulation } from './simulation.js';
-import { LossChart, RightChart } from './visualization.js';
+import { LossChart, RightChart, GradProjectionChart } from './visualization.js';
 import { MultiSimulation, MultiLossChart, MultiSharpnessChart } from './multi-simulation.js';
 import { CHEBYSHEV_DEFAULTS, describeDefaults } from './defaults.js';
 
@@ -235,6 +235,84 @@ function initGradientFlow() {
 }
 
 // ============================================================================
+// EIGENVECTOR WIDGET: Loss + Sharpness + Gradient Projection along top eigenvector
+// ============================================================================
+// Uses CHEBYSHEV_DEFAULTS. The third chart only starts filling once sharpness
+// enters the 5% proximity band around 2/η, at which point the top eigenvector
+// is locked in and every subsequent gradient is projected onto it.
+
+function initEigenvectorWidget() {
+  const startBtn = document.getElementById('eigenvector-start');
+  const resetBtn = document.getElementById('eigenvector-reset');
+  if (!startBtn) return null;
+
+  // Info label
+  const infoEl = document.getElementById('eigenvector-info');
+  if (infoEl) infoEl.textContent = `${describeDefaults(CHEBYSHEV_DEFAULTS)}, Chebyshev degree ${CHEBYSHEV_DEFAULTS.taskParams.degree}, ${CHEBYSHEV_DEFAULTS.taskParams.nTrain} points — eigenvector locked at 5% of 2/η`;
+
+  const sim = new Simulation({
+    kEigs: 1,
+    stepsPerSecId: null,
+    sharpnessProximityThreshold: 0.05
+  });
+
+  const lossChart = new LossChart('eigenvector-loss', { showTest: false, showEma: false });
+  const sharpnessChart = new RightChart('eigenvector-sharpness', { kEigs: 1 });
+  const projChart = new GradProjectionChart('eigenvector-projection');
+
+  sim.onFrameUpdate = () => {
+    const state = sim.getState();
+    lossChart.update(state.lossHistory, state.testLossHistory, state.eta);
+    sharpnessChart.update(state.eigenvalueHistory, state.eta);
+    projChart.update(state.gradProjectionHistory, state.eta);
+
+    // Update capture-step annotation if eigenvector was just captured
+    const captureEl = document.getElementById('eigenvector-capture-info');
+    if (captureEl && state.eigenvectorCaptureStep !== null && captureEl.dataset.set !== '1') {
+      captureEl.textContent = `Eigenvector captured at step ${state.eigenvectorCaptureStep} (λ_max = ${state.eigenvectorCaptureValue.toFixed(3)})`;
+      captureEl.style.display = 'block';
+      captureEl.dataset.set = '1';
+    }
+  };
+
+  sim.onDiverge = () => {
+    startBtn.textContent = 'diverged';
+    startBtn.disabled = true;
+  };
+
+  startBtn.addEventListener('click', () => {
+    if (!sim.isRunning) {
+      if (!sim.model) {
+        const d = CHEBYSHEV_DEFAULTS;
+        sim.captureParams(d.taskKey, d.taskParams, d.activation, d.hiddenDims, d.eta, d.batchSize, d.modelSeed);
+      }
+      sim.start();
+      startBtn.textContent = 'pause';
+    } else {
+      sim.pause();
+      startBtn.textContent = 'resume';
+    }
+  });
+
+  resetBtn.addEventListener('click', () => {
+    sim.reset();
+    lossChart.clear();
+    sharpnessChart.clear();
+    projChart.clear();
+    startBtn.textContent = 'start';
+    startBtn.disabled = false;
+    const captureEl = document.getElementById('eigenvector-capture-info');
+    if (captureEl) {
+      captureEl.textContent = '';
+      captureEl.style.display = 'none';
+      captureEl.dataset.set = '';
+    }
+  });
+
+  return sim;
+}
+
+// ============================================================================
 // INITIALIZATION - called after MathJax is ready
 // ============================================================================
 
@@ -242,4 +320,5 @@ export function initTutorialWidgets() {
   const w1 = initBaseExperiment();
   const w2 = initMultiEigenvalues();
   const w3 = initGradientFlow();
+  const w4 = initEigenvectorWidget();
 }

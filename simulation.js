@@ -64,6 +64,37 @@ export class Simulation {
       maxIters: options.hessianMaxIters || 100,
       tolRatio: 0.01
     };
+
+    // ---- Edge-of-Stability eigenvector tracking ----
+    //
+    // When the top Hessian eigenvalue first enters the proximity band
+    //   λ_max >= (1 - sharpnessProximityThreshold) * (2/η)
+    // Lanczos is re-run with returnEigenvectors:true and the resulting top
+    // eigenvector is stored permanently in topEigenvector (a flat array of
+    // length P, same parameter order as hessian.js / computeGradientFlat).
+    //
+    // After capture, every training step computes the dot product of the raw
+    // gradient with topEigenvector and appends it to gradProjectionHistory,
+    // giving a step-by-step record of how much gradient descent moves along
+    // the sharpest direction of the loss landscape.
+    //
+    // sharpnessProximityThreshold: fraction of 2/eta (default 0.05 = 5%).
+    //   Override via: new Simulation({ sharpnessProximityThreshold: 0.10 })
+    this.sharpnessProximityThreshold = options.sharpnessProximityThreshold !== undefined
+      ? options.sharpnessProximityThreshold
+      : 0.05;
+
+    // Stored top Hessian eigenvector (flat array, length P). null until captured.
+    this.topEigenvector = null;
+    // Metadata about when/where the eigenvector was captured.
+    this.eigenvectorCaptureStep = null;
+    this.eigenvectorCaptureValue = null;
+
+    // Per-step gradient projections onto topEigenvector.
+    // Each entry: { iteration, projection }
+    // projection = dot(gradFlat, topEigenvector)
+    // Positive = gradient has a component in the eigenvector direction.
+    this.gradProjectionHistory = [];
   }
 
   captureParams(taskKey, taskParams, activation, hiddenDims, eta, batchSize, modelSeed) {
@@ -122,6 +153,10 @@ export class Simulation {
     this.lossHistory = [];
     this.testLossHistory = [];
     this.eigenvalueHistory = [];
+    this.gradProjectionHistory = [];
+    this.topEigenvector = null;
+    this.eigenvectorCaptureStep = null;
+    this.eigenvectorCaptureValue = null;
   }
 
   /**
@@ -194,9 +229,15 @@ export class Simulation {
   }
 
   /**
-   * Compute top-k Hessian eigenvalues using the Lanczos algorithm.
-   * Passes the trainer (which owns the gradient computation) to avoid
-   * duplicating backprop code.
+   * Compute top-k Hessian eigenvalues (and eigenvectors) using the Lanczos
+   * algorithm.  Eigenvectors are always requested so that the top eigenvector
+   * is available for the capture check below without a second Lanczos pass.
+   *
+   * If no eigenvector has been stored yet and the top eigenvalue is within
+   * sharpnessProximityThreshold of the critical threshold 2/eta, the top
+   * eigenvector from this run is stored permanently in this.topEigenvector.
+   *
+   * Returns the eigenvalue array (sorted ascending), or null on failure.
    */
   computeHessianEigenvalues() {
     if (!this.trainer || !this.dataset) return null;
@@ -205,10 +246,73 @@ export class Simulation {
       this.trainer,
       this.dataset.x,
       this.dataYArrays,
-      this.hessianOptions
+      { ...this.hessianOptions, returnEigenvectors: true }
     );
 
-    return result.eigenvalues;
+    const eigs = result.eigenvalues;
+
+    // ---- Eigenvector capture check (store-once, outside Lanczos) ----
+    if (!this.topEigenvector && eigs && eigs.length > 0 && this.params) {
+      const lambdaMax = eigs[eigs.length - 1];
+      const threshold = 2 / this.params.eta;
+      const proximityFraction = lambdaMax / threshold; // 1.0 = exactly at threshold
+
+      if (proximityFraction >= (1 - this.sharpnessProximityThreshold)) {
+        if (result.eigenvectors && result.eigenvectors.length > 0) {
+          // eigenvectors sorted ascending — last one corresponds to top eigenvalue
+          this.topEigenvector = result.eigenvectors[result.eigenvectors.length - 1];
+          this.eigenvectorCaptureStep = this.iteration;
+          this.eigenvectorCaptureValue = lambdaMax;
+          console.log(
+            `[EoS] Top eigenvector captured at step ${this.iteration}.` +
+            ` λ_max=${lambdaMax.toFixed(4)}, threshold=${threshold.toFixed(4)}` +
+            ` (${(proximityFraction * 100).toFixed(1)}% of 2/η)`
+          );
+        }
+      }
+    }
+
+    return eigs;
+  }
+
+  /**
+   * Project the most recent gradient onto the stored top eigenvector.
+   * Returns null if the eigenvector hasn't been captured yet or if no
+   * gradient is available.
+   *
+   * Returns:
+   *   projection — cosine similarity: dot(g/||g||, v̂)
+   *                ranges [-1, 1]; purely measures directional alignment
+   *                independent of learning rate or gradient magnitude.
+   *   gradNorm   — ||g||, the Euclidean norm of the raw gradient.
+   *                tracks gradient magnitude separately (grows during EoS).
+   *
+   * @returns {{ projection: number, gradNorm: number }|null}
+   */
+  computeGradientProjection() {
+    if (!this.topEigenvector || !this.trainer || !this.trainer.lastGradFlat) return null;
+
+    const g = this.trainer.lastGradFlat;
+    const v = this.topEigenvector;
+
+    if (g.length !== v.length) {
+      console.warn('[EoS] Gradient and eigenvector length mismatch:', g.length, v.length);
+      return null;
+    }
+
+    // Compute gradient norm
+    let normSq = 0;
+    for (let i = 0; i < g.length; i++) normSq += g[i] * g[i];
+    const gradNorm = Math.sqrt(normSq);
+
+    if (gradNorm < 1e-12) return { projection: 0, gradNorm: 0 };
+
+    // Cosine similarity: dot(g, v) / ||g||  (v is already unit norm from Lanczos)
+    let dot = 0;
+    for (let i = 0; i < g.length; i++) dot += g[i] * v[i];
+    const projection = dot / gradNorm;
+
+    return { projection, gradNorm };
   }
 
   start() {
@@ -247,6 +351,10 @@ export class Simulation {
     this.lossHistory = [];
     this.testLossHistory = [];
     this.eigenvalueHistory = [];
+    this.gradProjectionHistory = [];
+    this.topEigenvector = null;
+    this.eigenvectorCaptureStep = null;
+    this.eigenvectorCaptureValue = null;
     this.stepCounts = [];
     this.totalSteps = 0;
     this.lastStepsPerSecUpdate = 0;
@@ -301,6 +409,17 @@ export class Simulation {
         }
       }
 
+      // Gradient projection onto top eigenvector (cheap — runs every step once
+      // eigenvector is captured, no-op otherwise).
+      const projResult = this.computeGradientProjection();
+      if (projResult !== null) {
+        this.gradProjectionHistory.push({
+          iteration: this.iteration,
+          projection: projResult.projection,  // cosine similarity in [-1, 1]
+          gradNorm: projResult.gradNorm        // raw gradient magnitude
+        });
+      }
+
       stepsThisFrame++;
       if (stepsThisFrame >= 1000) break;
 
@@ -347,6 +466,10 @@ export class Simulation {
       lossHistory: this.lossHistory,
       testLossHistory: this.testLossHistory,
       eigenvalueHistory: this.eigenvalueHistory,
+      gradProjectionHistory: this.gradProjectionHistory,
+      topEigenvector: this.topEigenvector,
+      eigenvectorCaptureStep: this.eigenvectorCaptureStep,
+      eigenvectorCaptureValue: this.eigenvectorCaptureValue,
       eta: this.params ? this.params.eta : 0.01,
       isRunning: this.isRunning
     };

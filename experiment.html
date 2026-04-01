@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Experiments</title>
+
+  <script>
+    MathJax = {
+      tex: {
+        inlineMath: [['$', '$']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']]
+      },
+      chtml: { scale: 1.0 },
+      startup: {
+        ready: () => {
+          MathJax.startup.defaultReady();
+          window.mathJaxReady = true;
+        }
+      }
+    };
+  </script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+  <link rel="stylesheet" href="styles.css">
+
+  <style>
+    /* ------------------------------------------------------------------ */
+    /* Deep Scalar Network widget layout                                   */
+    /* Main landscape (square) on the left, three thin charts on the right */
+    /* ------------------------------------------------------------------ */
+
+    .dsn-widget {
+      display: flex;
+      gap: 32px;
+      align-items: flex-start;
+      justify-content: center;
+      margin: 1.5em 0;
+    }
+
+    /* Square landscape container — landscape + overlay share the same space */
+    .dsn-landscape-wrap {
+      position: relative;
+      width: 380px;
+      height: 380px;
+      flex-shrink: 0;
+      margin-left: 48px;  /* room for y-axis ticks + label */
+      margin-bottom: 32px; /* room for x-axis ticks + label */
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      background: white;
+    }
+
+    .dsn-landscape-wrap canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      border-radius: 3px;
+    }
+
+    /* Overlay sits on top and captures mouse events */
+    #dsn-overlay {
+      z-index: 2;
+    }
+
+    #dsn-landscape {
+      z-index: 1;
+    }
+
+    /* Axis labels for the landscape */
+    .dsn-x-label {
+      position: absolute;
+      bottom: -30px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 14px;
+      color: #666;
+    }
+
+    .dsn-y-label {
+      position: absolute;
+      left: -46px;
+      top: 50%;
+      transform: rotate(-90deg) translateX(50%);
+      transform-origin: center center;
+      font-size: 14px;
+      color: #666;
+      white-space: nowrap;
+    }
+
+    /* Axis tick labels */
+    .dsn-tick {
+      position: absolute;
+      font-size: 11px;
+      color: #555;
+      font-family: Monaco, Consolas, monospace;
+    }
+
+    /* X ticks sit below the canvas */
+    .dsn-tick-x {
+      bottom: -18px;
+      transform: translateX(-50%);
+    }
+
+    /* Y ticks sit to the left of the canvas */
+    .dsn-tick-y {
+      left: -22px;
+      transform: translateY(-50%);
+      text-align: right;
+    }
+
+    /* Right column: three companion charts stacked vertically */
+    .dsn-charts-col {
+      width: 260px;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .dsn-chart-wrap {
+      position: relative;
+      height: 130px;
+    }
+
+    .dsn-chart-wrap canvas {
+      width: 100%;
+      height: 100%;
+    }
+
+    /* Slider row */
+    .dsn-controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 0.8em;
+      font-size: 14px;
+    }
+
+    .dsn-controls label {
+      min-width: 80px;
+    }
+
+    .dsn-eta-display {
+      min-width: 40px;
+      font-family: Monaco, Consolas, monospace;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+
+  <h1 class="page-title">Experiments</h1>
+  <p class="section-label">SANDBOX — not part of the main tutorial</p>
+
+  <div class="tutorial-content">
+
+    <p>This page is a scratchpad for experimental widgets before they get folded into the main page. Nothing here is final.</p>
+
+    <!-- ================================================================ -->
+    <!-- EIGENVECTOR WIDGET                                                -->
+    <!-- ================================================================ -->
+
+    <h2>Gradient Oscillations Along the Top Eigenvector</h2>
+
+    <p>The widget below runs the default Chebyshev experiment and tracks how much each gradient step points along the top Hessian eigenvector $\hat{v}$. The eigenvector is locked in the first time sharpness comes within 5% of the critical threshold $2/\eta$. Before that moment the third chart sits empty; once the eigenvector is captured it fills in with two series:</p>
+
+    <ul>
+      <li><strong>$\cos(\nabla\mathcal{L},\,\hat{v})$</strong> (purple, left axis) — cosine similarity between the gradient and $\hat{v}$, ranging $[-1, 1]$. Sign flips here are the oscillation that implicitly reduces sharpness.</li>
+      <li><strong>$\|\nabla\mathcal{L}\|$</strong> (orange, right axis, hidden by default) — raw gradient norm.</li>
+    </ul>
+
+    <div class="tutorial-widget">
+      <div class="tutorial-widget-controls">
+        <button id="eigenvector-start" class="sim-button">start</button>
+        <button id="eigenvector-reset" class="sim-button">reset</button>
+        <span id="eigenvector-info" class="tutorial-widget-info"></span>
+      </div>
+      <div class="tutorial-widget-charts">
+        <div class="tutorial-widget-chart">
+          <div class="plot-box">
+            <div class="plot-content">
+              <canvas id="eigenvector-loss" class="plot-canvas"></canvas>
+              <div class="y-axis-label y-axis-label-loss">loss $\mathcal{L}$</div>
+              <div class="x-axis-label">step</div>
+            </div>
+          </div>
+        </div>
+        <div class="tutorial-widget-chart">
+          <div class="plot-box">
+            <div class="plot-content">
+              <canvas id="eigenvector-sharpness" class="plot-canvas"></canvas>
+              <div class="y-axis-label y-axis-label-norms">sharpness</div>
+              <div class="x-axis-label">step</div>
+            </div>
+          </div>
+        </div>
+        <div class="tutorial-widget-chart">
+          <div class="plot-box">
+            <div class="plot-content">
+              <canvas id="eigenvector-projection" class="plot-canvas"></canvas>
+              <div class="y-axis-label" style="left: -42px;">$\cos(\nabla\mathcal{L},\,\hat{v})$</div>
+              <div class="x-axis-label">step</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div id="eigenvector-capture-info" class="eigenvector-capture-info"></div>
+      <figcaption style="margin-top:0.6em; font-size:0.88em; color:#555; text-align:center;">
+        Cosine similarity between the gradient and the top Hessian eigenvector $\hat{v}$ (purple, left axis) and gradient norm $\|\nabla\mathcal{L}\|$ (orange, right axis, hidden by default). Recorded only after eigenvector capture.
+      </figcaption>
+    </div>
+
+    <!-- ================================================================ -->
+    <!-- DEEP SCALAR NETWORK WIDGET                                        -->
+    <!-- ================================================================ -->
+
+    <h2>Deep Scalar Network — Loss Landscape</h2>
+
+    <p>The simplest two-layer deep network with scalar weights: $L(x, y) = (1 - xy)^2$. The minimum is the hyperbola $xy = 1$. Drag the white circle to set the starting point, adjust $\eta$ with the slider, and gradient descent reruns immediately.</p>
+
+    <p>The loss landscape is colored by $\log_{10} L$: blue near the minimum manifold $xy=1$, red at high loss. The three companion charts show loss, the largest Hessian eigenvalue $\lambda_{\max}$ against the stability threshold $2/\eta$, and the product $xy$ converging toward 1.</p>
+
+    <!-- Controls above the widget -->
+    <div class="dsn-controls">
+      <label for="dsn-eta-slider">learning rate $\eta$:</label>
+      <input type="range" id="dsn-eta-slider"
+             min="0.01" max="1.0" step="0.01" value="0.2"
+             style="width: 180px;">
+      <span id="dsn-eta-value" class="dsn-eta-display">0.200</span>
+    </div>
+
+    <!-- Main widget: landscape + companion charts side by side -->
+    <div class="dsn-widget">
+
+      <!-- Left: loss landscape (two stacked canvases — background + overlay) -->
+      <div class="dsn-landscape-wrap">
+        <!-- Resolution 380×380 — matches display size exactly -->
+        <canvas id="dsn-landscape" width="380" height="380"></canvas>
+        <canvas id="dsn-overlay"   width="380" height="380"></canvas>
+        <div class="dsn-x-label">$x$</div>
+        <div class="dsn-y-label">$y$</div>
+
+        <!-- X-axis tick labels: -2, 0, 2, 4, 6 -->
+        <div class="dsn-tick dsn-tick-x" style="left: 0%;">-2</div>
+        <div class="dsn-tick dsn-tick-x" style="left: 25%;">0</div>
+        <div class="dsn-tick dsn-tick-x" style="left: 50%;">2</div>
+        <div class="dsn-tick dsn-tick-x" style="left: 75%;">4</div>
+        <div class="dsn-tick dsn-tick-x" style="left: 100%;">6</div>
+
+        <!-- Y-axis tick labels: -2, 0, 2, 4, 6 (top to bottom = 6 to -2) -->
+        <div class="dsn-tick dsn-tick-y" style="top: 0%;">6</div>
+        <div class="dsn-tick dsn-tick-y" style="top: 25%;">4</div>
+        <div class="dsn-tick dsn-tick-y" style="top: 50%;">2</div>
+        <div class="dsn-tick dsn-tick-y" style="top: 75%;">0</div>
+        <div class="dsn-tick dsn-tick-y" style="top: 100%;">-2</div>
+      </div>
+
+      <!-- Right: three thin companion charts stacked vertically -->
+      <div class="dsn-charts-col">
+
+        <div class="dsn-chart-wrap">
+          <div class="plot-box" style="height: 100%; padding: 12px 12px 28px 44px;">
+            <div class="plot-content">
+              <canvas id="dsn-loss" class="plot-canvas"></canvas>
+              <div class="y-axis-label y-axis-label-loss" style="font-size:13px;">loss</div>
+              <div class="x-axis-label" style="font-size:13px;">step</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="dsn-chart-wrap">
+          <div class="plot-box" style="height: 100%; padding: 12px 12px 28px 44px;">
+            <div class="plot-content">
+              <canvas id="dsn-eig" class="plot-canvas"></canvas>
+              <div class="y-axis-label y-axis-label-norms" style="font-size:13px;">$\lambda_{\max}$</div>
+              <div class="x-axis-label" style="font-size:13px;">step</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="dsn-chart-wrap">
+          <div class="plot-box" style="height: 100%; padding: 12px 12px 28px 44px;">
+            <div class="plot-content">
+              <canvas id="dsn-prod" class="plot-canvas"></canvas>
+              <div class="y-axis-label" style="left:-32px; font-size:13px;">$xy$</div>
+              <div class="x-axis-label" style="font-size:13px;">step</div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- .dsn-charts-col -->
+    </div><!-- .dsn-widget -->
+
+  </div><!-- .tutorial-content -->
+
+</div><!-- .container -->
+
+<!-- Dependencies -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0"></script>
+
+<!-- Experiment entry point (ES6 module) -->
+<script type="module" src="experiment.js"></script>
+
+</body>
+</html>
