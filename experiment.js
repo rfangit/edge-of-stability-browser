@@ -82,42 +82,321 @@ function initEigenvectorWidget() {
 }
 
 // ============================================================================
-// DEEP SCALAR NETWORK — loss landscape + gradient descent widget
+// DEEP SCALAR NETWORK — shared infrastructure
 // ============================================================================
-// Models the scalar network L(x, y) = (1 - x*y)^2 — the simplest two-layer
-// deep network with scalar weights. The minimum manifold is the hyperbola xy=1,
-// making it a clean toy model for studying loss landscape geometry and EoS.
+// Both DSN widgets share:
+//   - logLossToColor()    — red-blue diverging colormap (viewport-independent)
+//   - DeepScalarWidget    — generic class handling landscape, overlay, GD,
+//                           drag, charts. Parameterised entirely by a config
+//                           object so adding a new variant requires no new
+//                           plumbing code.
 //
-// All gradient and Hessian calculations use closed-form expressions.
-// No MLP / Trainer / Lanczos machinery is used here.
-//
-// Closed-form expressions:
-//   L(x, y)   = (1 - xy)²
-//   ∇L        = [-2y(1-xy),  -2x(1-xy)]
-//   H         = [[ 2y²,        2(1-2xy) ],
-//                [ 2(1-2xy),   2x²      ]]
-//   λ_max(H)  = (y²+x²) + sqrt((y²-x²)² + 4(1-2xy)²)   [closed form, 2×2 sym]
+// Each variant supplies only:
+//   - Its own math functions (loss, gradient, maxEigenvalue, productFn)
+//   - Its viewport bounds (xMin, xMax, yMin, yMax)
+//   - Its DOM IDs and initial start point
 // ============================================================================
 
-// Viewport bounds (matching the Python xlim/ylim)
-const DSN_X_MIN = -2, DSN_X_MAX = 6;
-const DSN_Y_MIN = -2, DSN_Y_MAX = 6;
-const DSN_MAX_ITER = 200;
-const DSN_DIVERGE_THRESHOLD = 1e6;
+// Red-blue diverging colormap centred at log10(L) = 0 (L = 1).
+// Blue = low loss, Red = high loss. Shared by all DSN variants.
+function logLossToColor(logL) {
+  const t = Math.max(-1, Math.min(1, logL / 4));
+  if (t < 0) {
+    const s = -t;
+    return [Math.round(255 * (1 - s)), Math.round(255 * (1 - s)), 255];
+  } else {
+    return [255, Math.round(255 * (1 - t)), Math.round(255 * (1 - t))];
+  }
+}
 
-// --- Closed-form math ---
+// ============================================================================
+// DeepScalarWidget
+// ============================================================================
+// Config object fields:
+//
+//   Viewport (required)
+//     xMin, xMax, yMin, yMax   — world-space bounds of the landscape canvas
+//
+//   Math (required — pure functions, no shared state)
+//     loss(x, y)               — scalar loss value
+//     gradient(x, y)           — [gx, gy] gradient vector
+//     maxEigenvalue(x, y)      — largest Hessian eigenvalue (closed form)
+//     productFn(x, y)          — scalar quantity tracked in third chart
+//     productLabel             — y-axis label for that chart (e.g. 'xy')
+//
+//   DOM IDs (required)
+//     landscapeId, overlayId   — two stacked canvas elements
+//     etaSliderId, etaValueId  — learning rate slider + display span
+//     lossChartId              — canvas for loss chart
+//     eigChartId               — canvas for eigenvalue chart
+//     prodChartId              — canvas for product chart
+//
+//   Initial state (optional)
+//     startX, startY           — initial draggable point (default 1, 1)
+//     maxIter                  — GD iteration cap (default 200)
+//     divergeThreshold         — stop if loss exceeds this (default 1e6)
+//     convergeThreshold        — stop if loss falls below this (default 0.001)
 
-function dsnLoss(x, y) {
+class DeepScalarWidget {
+  constructor(config) {
+    this.cfg = {
+      startX: 1, startY: 1,
+      maxIter: 200,
+      divergeThreshold: 1e6,
+      convergeThreshold: 0.001,
+      ...config
+    };
+
+    // Grab DOM elements
+    this.landscapeCanvas = document.getElementById(this.cfg.landscapeId);
+    this.overlayCanvas   = document.getElementById(this.cfg.overlayId);
+    this.etaSlider       = document.getElementById(this.cfg.etaSliderId);
+    this.etaDisplay      = document.getElementById(this.cfg.etaValueId);
+    if (!this.landscapeCanvas || !this.overlayCanvas || !this.etaSlider) return;
+
+    // Charts
+    this.lossChart = new LineChart(this.cfg.lossChartId, {
+      label: 'loss', color: 'rgb(40, 130, 130)'
+    });
+    this.eigChart = new LineChart(this.cfg.eigChartId, {
+      label: 'λ_max', color: 'rgb(220, 50, 50)', refLabel: '2/η'
+    });
+    this.prodChart = new LineChart(this.cfg.prodChartId, {
+      label: this.cfg.productLabel, color: 'rgb(130, 60, 200)'
+    });
+
+    // State
+    this.startX = this.cfg.startX;
+    this.startY = this.cfg.startY;
+    this.currentResult = null;
+    this.isDragging = false;
+
+    // Precompute static landscape
+    this._precomputeLandscape();
+
+    // Initial run
+    this._runAndDraw();
+
+    // Wire up slider and drag events
+    this.etaSlider.addEventListener('input', () => this._runAndDraw());
+    this._bindDrag();
+  }
+
+  // --- Coordinate helpers (use this.cfg viewport bounds) ---
+
+  _worldToPixel(wx, wy) {
+    const { xMin, xMax, yMin, yMax } = this.cfg;
+    const W = this.overlayCanvas.width;
+    const H = this.overlayCanvas.height;
+    return [
+      ((wx - xMin) / (xMax - xMin)) * (W - 1),
+      ((yMax - wy) / (yMax - yMin)) * (H - 1)
+    ];
+  }
+
+  _pixelToWorld(px, py) {
+    const { xMin, xMax, yMin, yMax } = this.cfg;
+    const W = this.overlayCanvas.width;
+    const H = this.overlayCanvas.height;
+    return [
+      xMin + (px / (W - 1)) * (xMax - xMin),
+      yMax - (py / (H - 1)) * (yMax - yMin)
+    ];
+  }
+
+  // --- Landscape precomputation ---
+
+  _precomputeLandscape() {
+    const canvas = this.landscapeCanvas;
+    const W = canvas.width, H = canvas.height;
+    const ctx = canvas.getContext('2d');
+    const img = ctx.createImageData(W, H);
+    const d   = img.data;
+    const { xMin, xMax, yMin, yMax, loss } = this.cfg;
+
+    for (let py = 0; py < H; py++) {
+      for (let px = 0; px < W; px++) {
+        const wx = xMin + (px / (W - 1)) * (xMax - xMin);
+        const wy = yMax - (py / (H - 1)) * (yMax - yMin);
+        const [r, g, b] = logLossToColor(Math.log10(loss(wx, wy) + 1e-10));
+        const i = (py * W + px) * 4;
+        d[i] = r; d[i+1] = g; d[i+2] = b; d[i+3] = 255;
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+  }
+
+  // --- Overlay drawing ---
+
+  _drawOverlay() {
+    const canvas = this.overlayCanvas;
+    const W = canvas.width, H = canvas.height;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, W, H);
+
+    const traj = this.currentResult ? this.currentResult.trajectory : null;
+
+    if (traj && traj.length > 1) {
+      ctx.beginPath();
+      ctx.strokeStyle = 'rgba(20, 20, 20, 0.85)';
+      ctx.lineWidth = 1.5;
+      const [x0, y0] = this._worldToPixel(traj[0].x, traj[0].y);
+      ctx.moveTo(x0, y0);
+      for (let i = 1; i < traj.length; i++) {
+        const [px, py] = this._worldToPixel(traj[i].x, traj[i].y);
+        ctx.lineTo(px, py);
+      }
+      ctx.stroke();
+
+      const [ex, ey] = this._worldToPixel(
+        traj[traj.length - 1].x, traj[traj.length - 1].y
+      );
+      ctx.beginPath();
+      ctx.arc(ex, ey, 4, 0, 2 * Math.PI);
+      ctx.fillStyle = 'rgba(20, 20, 20, 0.9)';
+      ctx.fill();
+    }
+
+    // Draggable start point
+    const [sx, sy] = this._worldToPixel(this.startX, this.startY);
+    ctx.beginPath();
+    ctx.arc(sx, sy, 6, 0, 2 * Math.PI);
+    ctx.fillStyle = 'white';
+    ctx.strokeStyle = '#222';
+    ctx.lineWidth = 2;
+    ctx.fill();
+    ctx.stroke();
+  }
+
+  // --- GD runner ---
+
+  _runGD(x0, y0, eta) {
+    const { loss, gradient, maxEigenvalue, productFn,
+            maxIter, divergeThreshold, convergeThreshold } = this.cfg;
+
+    const trajectory = [{ x: x0, y: y0 }];
+    const lossHist   = [{ iteration: 0, value: loss(x0, y0) }];
+    const eigHist    = [{ iteration: 0, value: maxEigenvalue(x0, y0) }];
+    const prodHist   = [{ iteration: 0, value: productFn(x0, y0) }];
+
+    let x = x0, y = y0;
+
+    for (let t = 1; t <= maxIter; t++) {
+      const [gx, gy] = gradient(x, y);
+      x -= eta * gx;
+      y -= eta * gy;
+
+      const l = loss(x, y);
+      trajectory.push({ x, y });
+      lossHist.push({ iteration: t, value: l });
+      eigHist.push({ iteration: t, value: maxEigenvalue(x, y) });
+      prodHist.push({ iteration: t, value: productFn(x, y) });
+
+      if (!isFinite(l) || l > divergeThreshold) break;
+      if (l < convergeThreshold) break;
+    }
+
+    return { trajectory, lossHist, eigHist, prodHist };
+  }
+
+  // --- Run GD and update all charts and overlay ---
+
+  _runAndDraw() {
+    const eta = parseFloat(this.etaSlider.value);
+    if (this.etaDisplay) this.etaDisplay.textContent = eta.toFixed(3);
+
+    this.currentResult = this._runGD(this.startX, this.startY, eta);
+    const { lossHist, eigHist, prodHist } = this.currentResult;
+
+    this._drawOverlay();
+    this.lossChart.update(lossHist);
+    this.eigChart.update(eigHist, 2 / eta);
+    this.prodChart.update(prodHist);
+  }
+
+  // --- Drag handling ---
+
+  _getCanvasPos(e) {
+    const rect   = this.overlayCanvas.getBoundingClientRect();
+    const scaleX = this.overlayCanvas.width  / rect.width;
+    const scaleY = this.overlayCanvas.height / rect.height;
+    const cx = e.touches ? e.touches[0].clientX : e.clientX;
+    const cy = e.touches ? e.touches[0].clientY : e.clientY;
+    return [(cx - rect.left) * scaleX, (cy - rect.top) * scaleY];
+  }
+
+  _isNearStart(px, py) {
+    const [sx, sy] = this._worldToPixel(this.startX, this.startY);
+    const dx = px - sx, dy = py - sy;
+    return Math.sqrt(dx * dx + dy * dy) < 14;
+  }
+
+  _applyDragPos(px, py) {
+    const W = this.overlayCanvas.width, H = this.overlayCanvas.height;
+    const cpx = Math.max(0, Math.min(W - 1, px));
+    const cpy = Math.max(0, Math.min(H - 1, py));
+    [this.startX, this.startY] = this._pixelToWorld(cpx, cpy);
+    this._runAndDraw();
+  }
+
+  _bindDrag() {
+    const oc = this.overlayCanvas;
+
+    oc.addEventListener('mousedown', (e) => {
+      const [px, py] = this._getCanvasPos(e);
+      if (this._isNearStart(px, py)) { this.isDragging = true; e.preventDefault(); }
+    });
+
+    oc.addEventListener('mousemove', (e) => {
+      const [px, py] = this._getCanvasPos(e);
+      if (this.isDragging) {
+        this._applyDragPos(px, py);
+        e.preventDefault();
+      } else {
+        oc.style.cursor = this._isNearStart(px, py) ? 'grab' : 'default';
+      }
+    });
+
+    oc.addEventListener('mouseup',    () => { this.isDragging = false; });
+    oc.addEventListener('mouseleave', () => { this.isDragging = false; });
+
+    oc.addEventListener('touchstart', (e) => {
+      const [px, py] = this._getCanvasPos(e);
+      if (this._isNearStart(px, py)) { this.isDragging = true; e.preventDefault(); }
+    }, { passive: false });
+
+    oc.addEventListener('touchmove', (e) => {
+      if (!this.isDragging) return;
+      const [px, py] = this._getCanvasPos(e);
+      this._applyDragPos(px, py);
+      e.preventDefault();
+    }, { passive: false });
+
+    oc.addEventListener('touchend', () => { this.isDragging = false; });
+  }
+}
+
+// ============================================================================
+// DSN1 — L(x, y) = (1 - xy)²
+// ============================================================================
+// Minimum manifold: hyperbola xy = 1
+//
+// ∇L        = [-2y(1-xy),  -2x(1-xy)]
+// H         = [[ 2y²,        2(1-2xy) ],
+//              [ 2(1-2xy),   2x²      ]]
+// λ_max(H)  = (x²+y²) + sqrt((y²-x²)² + 4(1-2xy)²)
+
+function dsn1Loss(x, y) {
   const p = 1 - x * y;
   return p * p;
 }
 
-function dsnGradient(x, y) {
+function dsn1Gradient(x, y) {
   const p = 1 - x * y;
   return [-2 * y * p, -2 * x * p];
 }
 
-function dsnMaxEigenvalue(x, y) {
+function dsn1MaxEigenvalue(x, y) {
   const a    = 2 * y * y;
   const d    = 2 * x * x;
   const b    = 2 * (1 - 2 * x * y);
@@ -126,238 +405,35 @@ function dsnMaxEigenvalue(x, y) {
   return mid + Math.sqrt(half * half + b * b);
 }
 
-// Run gradient descent to completion. Returns trajectory + companion histories.
-function dsnRunGD(x0, y0, eta) {
-  const trajectory = [{ x: x0, y: y0 }];
-  const lossHist   = [{ iteration: 0, value: dsnLoss(x0, y0) }];
-  const eigHist    = [{ iteration: 0, value: dsnMaxEigenvalue(x0, y0) }];
-  const prodHist   = [{ iteration: 0, value: x0 * y0 }];
+// ============================================================================
+// DSN2 — L(x, y) = (1 - x²y²)²
+// ============================================================================
+// Minimum manifold: hyperbolas xy = +1 and xy = -1 (four branches)
+//
+// ∂L/∂x     = -4xy²(1-x²y²)
+// ∂L/∂y     = -4x²y(1-x²y²)
+// ∂²L/∂x²   = 4y²(3x²y² - 1)
+// ∂²L/∂y²   = 4x²(3x²y² - 1)
+// ∂²L/∂x∂y  = -8xy(1 - 2x²y²)
 
-  let x = x0, y = y0;
-
-  for (let t = 1; t <= DSN_MAX_ITER; t++) {
-    const [gx, gy] = dsnGradient(x, y);
-    x -= eta * gx;
-    y -= eta * gy;
-
-    const loss = dsnLoss(x, y);
-    trajectory.push({ x, y });
-    lossHist.push({ iteration: t, value: loss });
-    eigHist.push({ iteration: t, value: dsnMaxEigenvalue(x, y) });
-    prodHist.push({ iteration: t, value: x * y });
-
-    if (!isFinite(loss) || loss > DSN_DIVERGE_THRESHOLD) break;
-    if (loss < 0.001) break; // converged
-  }
-
-  return { trajectory, lossHist, eigHist, prodHist };
+function dsn2Loss(x, y) {
+  const p = 1 - x * x * y * y;
+  return p * p;
 }
 
-// --- Landscape canvas (precomputed pixel grid, drawn once) ---
-
-// Red-blue diverging colormap centered at log10(L) = 0 (i.e. L = 1).
-// Blue = low loss (near the xy=1 manifold), Red = high loss.
-// Matches the Python matplotlib colormap.
-function logLossToColor(logL) {
-  // Compress the range: /4 maps ±4 log units to the full ±1 color range.
-  const t = Math.max(-1, Math.min(1, logL / 4));
-  if (t < 0) {
-    // White -> blue  (low loss)
-    const s = -t;
-    return [Math.round(255 * (1 - s)), Math.round(255 * (1 - s)), 255];
-  } else {
-    // White -> red  (high loss)
-    return [255, Math.round(255 * (1 - t)), Math.round(255 * (1 - t))];
-  }
+function dsn2Gradient(x, y) {
+  const p = 1 - x * x * y * y;
+  return [-4 * x * y * y * p, -4 * x * x * y * p];
 }
 
-function dsnPrecomputeLandscape(canvas) {
-  const W   = canvas.width;
-  const H   = canvas.height;
-  const ctx = canvas.getContext('2d');
-  const img = ctx.createImageData(W, H);
-  const d   = img.data;
-
-  for (let py = 0; py < H; py++) {
-    for (let px = 0; px < W; px++) {
-      // py=0 is top of canvas = y=DSN_Y_MAX
-      const wx = DSN_X_MIN + (px / (W - 1)) * (DSN_X_MAX - DSN_X_MIN);
-      const wy = DSN_Y_MAX - (py / (H - 1)) * (DSN_Y_MAX - DSN_Y_MIN);
-      const [r, g, b] = logLossToColor(Math.log10(dsnLoss(wx, wy) + 1e-10));
-      const i = (py * W + px) * 4;
-      d[i] = r; d[i+1] = g; d[i+2] = b; d[i+3] = 255;
-    }
-  }
-  ctx.putImageData(img, 0, 0);
-  return img; // caller can reuse to restore background before redrawing overlay
-}
-
-// --- Coordinate helpers ---
-
-function dsnWorldToPixel(wx, wy, W, H) {
-  return [
-    ((wx - DSN_X_MIN) / (DSN_X_MAX - DSN_X_MIN)) * (W - 1),
-    ((DSN_Y_MAX - wy) / (DSN_Y_MAX - DSN_Y_MIN)) * (H - 1)
-  ];
-}
-
-function dsnPixelToWorld(px, py, W, H) {
-  return [
-    DSN_X_MIN + (px / (W - 1)) * (DSN_X_MAX - DSN_X_MIN),
-    DSN_Y_MAX - (py / (H - 1)) * (DSN_Y_MAX - DSN_Y_MIN)
-  ];
-}
-
-// --- Overlay drawing ---
-
-function dsnDrawOverlay(overlayCanvas, trajectory, startX, startY) {
-  const W   = overlayCanvas.width;
-  const H   = overlayCanvas.height;
-  const ctx = overlayCanvas.getContext('2d');
-  ctx.clearRect(0, 0, W, H);
-
-  // Draw trajectory path and end point
-  if (trajectory && trajectory.length > 1) {
-    ctx.beginPath();
-    ctx.strokeStyle = 'rgba(20, 20, 20, 0.85)';
-    ctx.lineWidth = 1.5;
-    const [x0, y0] = dsnWorldToPixel(trajectory[0].x, trajectory[0].y, W, H);
-    ctx.moveTo(x0, y0);
-    for (let i = 1; i < trajectory.length; i++) {
-      const [px, py] = dsnWorldToPixel(trajectory[i].x, trajectory[i].y, W, H);
-      ctx.lineTo(px, py);
-    }
-    ctx.stroke();
-
-    // End point marker
-    const [ex, ey] = dsnWorldToPixel(
-      trajectory[trajectory.length - 1].x,
-      trajectory[trajectory.length - 1].y, W, H
-    );
-    ctx.beginPath();
-    ctx.arc(ex, ey, 4, 0, 2 * Math.PI);
-    ctx.fillStyle = 'rgba(20, 20, 20, 0.9)';
-    ctx.fill();
-  }
-
-  // Start point (draggable) — white circle with dark border
-  const [sx, sy] = dsnWorldToPixel(startX, startY, W, H);
-  ctx.beginPath();
-  ctx.arc(sx, sy, 6, 0, 2 * Math.PI);
-  ctx.fillStyle = 'white';
-  ctx.strokeStyle = '#222';
-  ctx.lineWidth = 2;
-  ctx.fill();
-  ctx.stroke();
-}
-
-// --- Widget initializer ---
-
-function initDeepScalarWidget() {
-  const landscapeCanvas = document.getElementById('dsn-landscape');
-  const overlayCanvas   = document.getElementById('dsn-overlay');
-  const etaSlider       = document.getElementById('dsn-eta-slider');
-  const etaDisplay      = document.getElementById('dsn-eta-value');
-  if (!landscapeCanvas || !overlayCanvas || !etaSlider) return;
-
-  // Companion charts
-  const lossChart = new LineChart('dsn-loss', {
-    label: 'loss',
-    color: 'rgb(40, 130, 130)'
-  });
-  const eigChart = new LineChart('dsn-eig', {
-    label: 'λ_max',
-    color: 'rgb(220, 50, 50)',
-    refLabel: '2/η'
-  });
-  const prodChart = new LineChart('dsn-prod', {
-    label: 'xy',
-    color: 'rgb(130, 60, 200)'
-  });
-
-  // Precompute landscape (static)
-  dsnPrecomputeLandscape(landscapeCanvas);
-
-  // State
-  let startX = 3.0, startY = 1.0;
-  let currentResult = null;
-
-  function runAndDraw() {
-    const eta = parseFloat(etaSlider.value);
-    etaDisplay.textContent = eta.toFixed(3);
-
-    currentResult = dsnRunGD(startX, startY, eta);
-    const { trajectory, lossHist, eigHist, prodHist } = currentResult;
-
-    dsnDrawOverlay(overlayCanvas, trajectory, startX, startY);
-    lossChart.update(lossHist);
-    eigChart.update(eigHist, 2 / eta);  // 2/η ref line updates with slider
-    prodChart.update(prodHist);
-  }
-
-  runAndDraw();
-
-  // Eta slider — recompute and redraw immediately
-  etaSlider.addEventListener('input', runAndDraw);
-
-  // --- Drag handling ---
-
-  let isDragging = false;
-
-  function getCanvasPos(e) {
-    const rect   = overlayCanvas.getBoundingClientRect();
-    const scaleX = overlayCanvas.width  / rect.width;
-    const scaleY = overlayCanvas.height / rect.height;
-    const cx = e.touches ? e.touches[0].clientX : e.clientX;
-    const cy = e.touches ? e.touches[0].clientY : e.clientY;
-    return [(cx - rect.left) * scaleX, (cy - rect.top) * scaleY];
-  }
-
-  function isNearStart(px, py) {
-    const [sx, sy] = dsnWorldToPixel(startX, startY, overlayCanvas.width, overlayCanvas.height);
-    const dx = px - sx, dy = py - sy;
-    return Math.sqrt(dx * dx + dy * dy) < 14;
-  }
-
-  function applyDragPos(px, py) {
-    const cpx = Math.max(0, Math.min(overlayCanvas.width  - 1, px));
-    const cpy = Math.max(0, Math.min(overlayCanvas.height - 1, py));
-    [startX, startY] = dsnPixelToWorld(cpx, cpy, overlayCanvas.width, overlayCanvas.height);
-    runAndDraw(); // rerun GD immediately on every move
-  }
-
-  overlayCanvas.addEventListener('mousedown', (e) => {
-    const [px, py] = getCanvasPos(e);
-    if (isNearStart(px, py)) { isDragging = true; e.preventDefault(); }
-  });
-
-  overlayCanvas.addEventListener('mousemove', (e) => {
-    const [px, py] = getCanvasPos(e);
-    if (isDragging) {
-      applyDragPos(px, py);
-      e.preventDefault();
-    } else {
-      overlayCanvas.style.cursor = isNearStart(px, py) ? 'grab' : 'default';
-    }
-  });
-
-  overlayCanvas.addEventListener('mouseup',    () => { isDragging = false; });
-  overlayCanvas.addEventListener('mouseleave', () => { isDragging = false; });
-
-  // Touch events
-  overlayCanvas.addEventListener('touchstart', (e) => {
-    const [px, py] = getCanvasPos(e);
-    if (isNearStart(px, py)) { isDragging = true; e.preventDefault(); }
-  }, { passive: false });
-
-  overlayCanvas.addEventListener('touchmove', (e) => {
-    if (!isDragging) return;
-    const [px, py] = getCanvasPos(e);
-    applyDragPos(px, py);
-    e.preventDefault();
-  }, { passive: false });
-
-  overlayCanvas.addEventListener('touchend', () => { isDragging = false; });
+function dsn2MaxEigenvalue(x, y) {
+  const q    = x * x * y * y;
+  const a    =  4 * y * y * (3 * q - 1);
+  const d    =  4 * x * x * (3 * q - 1);
+  const b    = -8 * x * y * (1 - 2 * q);
+  const mid  = (a + d) / 2;
+  const half = (a - d) / 2;
+  return mid + Math.sqrt(half * half + b * b);
 }
 
 // ============================================================================
@@ -366,7 +442,40 @@ function initDeepScalarWidget() {
 
 function init() {
   initEigenvectorWidget();
-  initDeepScalarWidget();
+
+  new DeepScalarWidget({
+    xMin: -2, xMax: 6, yMin: -2, yMax: 6,
+    loss: dsn1Loss,
+    gradient: dsn1Gradient,
+    maxEigenvalue: dsn1MaxEigenvalue,
+    productFn: (x, y) => x * y,
+    productLabel: 'xy',
+    landscapeId: 'dsn-landscape',
+    overlayId:   'dsn-overlay',
+    etaSliderId: 'dsn-eta-slider',
+    etaValueId:  'dsn-eta-value',
+    lossChartId: 'dsn-loss',
+    eigChartId:  'dsn-eig',
+    prodChartId: 'dsn-prod',
+    startX: 3.0, startY: 1.0
+  });
+
+  new DeepScalarWidget({
+    xMin: -3, xMax: 3, yMin: -3, yMax: 3,
+    loss: dsn2Loss,
+    gradient: dsn2Gradient,
+    maxEigenvalue: dsn2MaxEigenvalue,
+    productFn: (x, y) => x * x * y * y,
+    productLabel: 'x²y²',
+    landscapeId: 'dsn2-landscape',
+    overlayId:   'dsn2-overlay',
+    etaSliderId: 'dsn2-eta-slider',
+    etaValueId:  'dsn2-eta-value',
+    lossChartId: 'dsn2-loss',
+    eigChartId:  'dsn2-eig',
+    prodChartId: 'dsn2-prod',
+    startX: 1.5, startY: 0.5
+  });
 }
 
 function waitForMathJax(attempts = 0) {

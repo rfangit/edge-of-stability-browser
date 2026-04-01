@@ -294,6 +294,80 @@
       </div><!-- .dsn-charts-col -->
     </div><!-- .dsn-widget -->
 
+    <!-- ================================================================ -->
+    <!-- DEEP SCALAR NETWORK 2 — L(x,y) = (1 - x²y²)²                   -->
+    <!-- ================================================================ -->
+
+    <h2>Deep Scalar Network 2 — $L(x,y) = (1 - x^2 y^2)^2$</h2>
+
+    <p>A generalisation of the previous model. The minimum manifold is now both hyperbolas $xy = +1$ and $xy = -1$, producing four symmetric branches. The landscape is centred on the origin so all four are visible. The companion plots track loss, $\lambda_{\max}$ against $2/\eta$, and the product $x^2 y^2$ converging toward 1.</p>
+
+    <div class="dsn-controls">
+      <label for="dsn2-eta-slider">learning rate $\eta$:</label>
+      <input type="range" id="dsn2-eta-slider"
+             min="0.01" max="1.0" step="0.01" value="0.2"
+             style="width: 180px;">
+      <span id="dsn2-eta-value" class="dsn-eta-display">0.200</span>
+    </div>
+
+    <div class="dsn-widget">
+
+      <div class="dsn-landscape-wrap">
+        <canvas id="dsn2-landscape" width="380" height="380"></canvas>
+        <canvas id="dsn2-overlay"   width="380" height="380"></canvas>
+        <div class="dsn-x-label">$x$</div>
+        <div class="dsn-y-label">$y$</div>
+
+        <!-- X-axis tick labels: -3, -1.5, 0, 1.5, 3 -->
+        <div class="dsn-tick dsn-tick-x" style="left: 0%;">-3</div>
+        <div class="dsn-tick dsn-tick-x" style="left: 25%;">-1.5</div>
+        <div class="dsn-tick dsn-tick-x" style="left: 50%;">0</div>
+        <div class="dsn-tick dsn-tick-x" style="left: 75%;">1.5</div>
+        <div class="dsn-tick dsn-tick-x" style="left: 100%;">3</div>
+
+        <!-- Y-axis tick labels: 3, 1.5, 0, -1.5, -3 (top to bottom) -->
+        <div class="dsn-tick dsn-tick-y" style="top: 0%;">3</div>
+        <div class="dsn-tick dsn-tick-y" style="top: 25%;">1.5</div>
+        <div class="dsn-tick dsn-tick-y" style="top: 50%;">0</div>
+        <div class="dsn-tick dsn-tick-y" style="top: 75%;">-1.5</div>
+        <div class="dsn-tick dsn-tick-y" style="top: 100%;">-3</div>
+      </div>
+
+      <div class="dsn-charts-col">
+
+        <div class="dsn-chart-wrap">
+          <div class="plot-box" style="height: 100%; padding: 12px 12px 28px 44px;">
+            <div class="plot-content">
+              <canvas id="dsn2-loss" class="plot-canvas"></canvas>
+              <div class="y-axis-label y-axis-label-loss" style="font-size:13px;">loss</div>
+              <div class="x-axis-label" style="font-size:13px;">step</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="dsn-chart-wrap">
+          <div class="plot-box" style="height: 100%; padding: 12px 12px 28px 44px;">
+            <div class="plot-content">
+              <canvas id="dsn2-eig" class="plot-canvas"></canvas>
+              <div class="y-axis-label y-axis-label-norms" style="font-size:13px;">$\lambda_{\max}$</div>
+              <div class="x-axis-label" style="font-size:13px;">step</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="dsn-chart-wrap">
+          <div class="plot-box" style="height: 100%; padding: 12px 12px 28px 44px;">
+            <div class="plot-content">
+              <canvas id="dsn2-prod" class="plot-canvas"></canvas>
+              <div class="y-axis-label" style="left:-36px; font-size:13px;">$x^2y^2$</div>
+              <div class="x-axis-label" style="font-size:13px;">step</div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- .dsn-charts-col -->
+    </div><!-- .dsn-widget -->
+
   </div><!-- .tutorial-content -->
 
 </div><!-- .container -->

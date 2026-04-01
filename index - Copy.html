@@ -72,151 +72,26 @@
       <div class="hero-caption">An 11-layer VGG trained on 5000 CIFAR-10 samples with learning rate η&nbsp;=&nbsp;0.01. Loss decreases while sharpness rises to meet the stability threshold 2/η, then oscillates around it.</div>
     </div>
 
-    <p>Common advice for training neural networks is to choose a learning rate that is neither too small or too large. Learning rates that are too small result in slow training, while too large results in models that can't learn at all.</p>
-
-    <p>Although true, this advice misses a very interesting phenomenon that occurs for practical learning rates: a regime we call the Edge of Stability. This regime occurs whenever the sharpness of the loss landscape exceeds a critical threshold determined by the learning rate. In this regime, training becomes unstable and the loss curve becomes spiky, but the loss still decreases over time and training is successful. This can be seen above.</p>
-
-    <p>This regime is interesting for several reasons:</p>
-    <ul>
-        <li>Although neural network training is generally very complex, several properties of the Edge of Stability can be well understood and predicted.</li>
-        <li>Properties at the edge of stability appear to be linked to the effectiveness of adaptive gradient methods, which have reduced the necessity of well tuned learning rates.</li>
-        <li>Theoretical understanding of neural network training often uses a continuous approximation of gradient descent called gradient flow, which models infinitesimal learning rates. It turns out this approximation breaks down mostly at the Edge of Stability.</li>
-    </ul>
-
-    <figure class="tutorial-figure">
-        <img src="imgs/gd_quadratic.png" alt="..." style="max-width: 50%;">
-        <figcaption>Additional examples of edge of stability on a variety of tasks and models. Note that whenever the sharpness exceeds the learning rate threshold, the training becomes unstable. For practical learning rates, this appears to always occur.</figcaption>
-    </figure>
-
-    <!-- ==================== SECTION: Edge of Stability  ==================== -->
-
-    <h2>Understanding Gradient Descent</h2>
-
-    <p>We begin with gradient descent. Parameters $w_i$ are updated according to</p>
-
-    $$w_{i+1} = w_i - \eta \nabla L(w_i)$$
-
-    <p>where $\eta$ is the learning rate and $L$ is the loss. In the limit that $\eta \to 0$, we have a differential equation called gradient flow, which is much easier to analyze.</p>
-
-    $$\frac{d w(t)}{dt} = - \nabla L(w(t))$$
-
-    <p>Unfortunately, understanding the general behaviour of this equation is extremely different. For a network with 1 million parameters, this is a million-dimensional nonlinear differential equation where the different weight dynamics are coupled. This is hard even in toy models where we can perfectly describe the data distribution, let alone real world data which produces very complex loss functions.</p>
-
-    <p>However, we can make useful statements. For example, we know that the loss is guaranteed to decrease at every step - this actually applies even at finite learning rates, so long as the learning rate is not higher than the curvature. ADD THE PRECISE MATHEMATICAL STATEMENT HERE WITH CITATION.</p>
-
-    <p>What does the finite learning rate <em>do</em>? To answer this, consider a 1D quadratic $L(w) = \frac{1}{2}Sw^2$, where $S$ controls the curvature. The update rule becomes</p>
-
-    $$w_{i+1} = w_i - \eta S w_i \implies w_{n} = (1 - \eta S)^n w_0$$
-
-    <p>which converges to the minimum $w = 0$ only if</p>
-
-    $$|1 - \eta S| < 1 \implies \eta < \frac{2}{S}$$
-
-    <p>If the learning rate is small relative to the curvature, gradient descent converges. If it's too large, the updates overshoot and oscillate.</p>
-    
-    <figure class="tutorial-figure">
-      <img src="imgs/gd_quadratic.png" alt="..." style="max-width: 50%;">
-      <figcaption><strong>Left:</strong> For small enough step sizes (relative to the curvature of the quadratic) gradient descent steadily approaches the minimum of the quadratic. <strong>Right:</strong> If the step size is too large, the optimized parameter does not converge but instead oscillates and diverges.</figcaption>
-    </figure>
-
-    <p>For a multidimensional quadratic loss $L(w) = \frac{1}{2}w^\top A w$, where $A = \nabla^2 L$ is the Hessian, the update is</p>
-
-    $$w_{i+1} = (I - \eta A)w_i$$
-
-    <p>Since $A$ is symmetric, we can decompose $w$ along its eigenvectors. Each component $w_i^k$ (along eigenvector $k$ with eigenvalue $\lambda_k$) evolves independently, exactly like the 1D case:</p>
-
-    $$w_{i+1}^{k} = (1 - \eta \lambda_{k})w_{i}^{k}$$
-
-    <p>Every component needs to converge, so the binding constraint comes from the largest eigenvalue:</p>
-
-    $$\eta < \frac{2}{\lambda_{\max}(A)}$$
-
-    <p>This quantity $\lambda_{\max}(A)$ &mdash; the largest eigenvalue of the Hessian &mdash; controls whether gradient descent converges or diverges. We call it the <strong>sharpness</strong>, and it's going to be the central quantity in this tutorial.</p>
-
-    <figure class="tutorial-figure">
-      <img src="imgs/2d_quadratic_optim.png" alt="Gradient descent on a 2D quadratic showing divergence along the sharpest eigenvector" style="max-width: 30%;">
-      <figcaption>In the multi-dimensional case, gradient descent is unstable as long as one eigenvalue is too large.</figcaption>
-    </figure>
-
-    
-    <p>Real deep learning losses aren't quadratics, but we can always take a quadratic Taylor approximation around the current weights. If this approximation is reasonable, the same stability condition should apply locally: when the sharpness at the current weights exceeds $2/\eta$, we'd expect gradient descent to oscillate and diverge along the top Hessian eigenvector.</p>
-
-    NEW SECTION HERE ON EDGE OF STABILITY AND PROGRESSIVE SHARPENING
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    
-    The algorithm has many virtues, but speed is not one of them. It is simple — when optimizing a smooth function ff, we make a small step in the gradient
-wk+1=wk−α∇f(wk).w​k+1​​=w​k​​−α∇f(w​k​​).
-For a step-size small enough, gradient descent makes a monotonic improvement at every iteration. It always converges, albeit to a local minimum. And under a few weak curvature conditions it can even get there at an exponential rate. 
-
-
-
-    The Edge of Stability is related to the curvature of the loss landscape, called the sharpness. If we perform gradient descent with infinitely small step sizes, then the loss is guaranteed to decrease. This regime is called gradient flow, and simplifies the analysis of training dynamics.
-    
-    However, in practice we have to take finite step sizes (learning rate $\eta > 0$). This produces issues when the loss landscape is too sharp, 
-
-    This finite step size causes a problem if our loss landscape is not very smooth.
-
-
-    
-    
-
-
-
-
-    And even though neural network training is generally very complex, these dynamics can be successfully characterized across a large variety of tasks and models. 
-    
-    
-    Furthermore, while studying neural network training behaviour is complex, there are very interesting behaviours that occur between these two extremes, and that most practical learning rates actually lie in this regime.
-
-    It turns out that most practical learning rates also result in interesting optimization dyanmics. Furthermore, while studying neural network training behaviour is complex, 
-    
-    It turns out that most practical learning rates actually lie in an interesting regime that occurs between these two extremes.
-    
-    
-    
-    rate that is "small enough" to ensure stable training. Too small of a learning rate results in slow and inefficient training, while too large of a learning rate results in unstable training that diverges. But what does "too large" actually mean?
-
-    It turns out that most practical learning rates actually lie in an interesting regime that occurs between these two extremes. Although studying neural network training behaviour is complex
-
-    
-    
-    
-    there are very interesting behaviours that occur between these two extremes, and that most practical learning rates actually lie in this regime.
-    
-    
-    But what does "too large" actually mean? What happens when we cross that threshold? And why do we even have to worry about this in the first place, given that deep learning losses are non-convex and complex?
-    If you choose too small of a learning rate, then training is slow and inefficient. If you choose too large of a learning rate, then training becomes unstable and diverges. 
-    
-    
-    But what does "too large" actually mean? What happens when we cross that threshold? And why do we even have to worry about this in the first place, given that deep learning losses are non-convex and complex?
-    
-
     <p> Although the general behaviour of neural network training is complex and nonlinear, focusing on the right aspects of the training dynamics can allow us to make general statements about how training behaves, and derive useful intuition on the role of hyperparameters. In this introduction, we'll discuss one such example: the <strong>edge of stability</strong> phenomenon, which is closely linked with the learning rate.</p>
       
     <p> We can see this phenomenon above: while the exact training curve is complex, we are able to derive a condition on the curvature of the loss landscape (right dashed line) that predicts when the training dynamics become unstable, resulting in spiky behaviour on the training loss curve.</p>
 
+    <!--
+      we see the curvature of the loss landscape steadily increases as we train our neural network. When it hits a critical threshold our loss no longer decreases smoothly but instead becomes very unstable, with sudden spikes in the loss. However, the loss continues to go down over time. This is called the <strong>edge of stability</strong>, which often occurs in deep learning.</p>
+
+
+    Training a neural network is a complex nonlinear optimization problem, dependent on aspects of the training data and architecture that we don't fully understand. Despite this apparent complexity, it turns out there are strong general statements that we can make about the dynamics of training that can be used to make better decisions on how to optimize. In this introduction, we'll discuss one such example: the edge of stability phenomenon.
+    
+
+    <p> In the above plot, we see the curvature of the loss landscape steadily increases as we train our neural network. When it hits a critical threshold our loss no longer decreases smoothly but instead becomes very unstable, with sudden spikes in the loss. However, the loss continues to go down over time. This is called the <strong>edge of stability</strong>, which often occurs in deep learning.</p>
+      
+    <p>Traditional analyses of optimization can't explain this behaviour. In this tutorial, we'll see:</p>
+    <ul>
+      <li>when traditional analysis breaks down</li>
+      <li>what progress we've made towards understanding</li>
+      <li>what open questions remain</li>
+    </ul>
+    -->
     <p>You'll be training neural networks directly in the browser as we go, and can play around with the parameters and more complex tasks for yourself at the end.</p>
 
     <p class="tutorial-note"><strong>Note:</strong> We'll use a simple task throughout to keep things fast. However, the phenomenon we discuss is general and appears to hold for more complex models encountered in practice. We'll include evidence of this from the lierature, and you can try slower, more complex tasks at the end.</p>
