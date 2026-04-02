@@ -72,335 +72,92 @@
       <div class="hero-caption">An 11-layer VGG trained on 5000 CIFAR-10 samples with learning rate η&nbsp;=&nbsp;0.01. Loss decreases while sharpness rises to meet the stability threshold 2/η, then oscillates around it.</div>
     </div>
 
-    <p>Common advice for training neural networks is to choose a learning rate that is neither too small or too large. Learning rates that are too small result in slow training, while too large results in models that can't learn at all.</p>
+    <p>Training a neural network means choosing a learning rate. Too small and training is too slow; too large and it diverges.</p>
 
-    <p>Although true, this advice misses a very interesting phenomenon that occurs for practical learning rates: a regime we call the Edge of Stability. This regime occurs whenever the sharpness of the loss landscape exceeds a critical threshold determined by the learning rate. In this regime, training becomes unstable and the loss curve becomes spiky, but the loss still decreases over time and training is successful. This can be seen above.</p>
+    <p>But something strange happens between these two extremes. For practical learning rates, the curvature of the loss landscape - the sharpness - slowly increases and inevitably crosses a critical threshold. At this threshold, the loss curve starts spiking erratically. Superficially, it seems like training will diverge.</p>
 
-    <p>This regime is interesting for several reasons:</p>
-    <ul>
-        <li>Although neural network training is generally very complex, several properties of the Edge of Stability can be well understood and predicted.</li>
-        <li>Properties at the edge of stability appear to be linked to the effectiveness of adaptive gradient methods, which have reduced the necessity of well tuned learning rates.</li>
-        <li>Theoretical understanding of neural network training often uses a continuous approximation of gradient descent called gradient flow, which models infinitesimal learning rates. It turns out this approximation breaks down mostly at the Edge of Stability.</li>
-    </ul>
+    <p>And yet, it isn't. Zoom out, and the loss is still going down. The network is still learning. It has found a way to balance itself, training at what is called the edge of stability.</p>
 
-    <figure class="tutorial-figure">
-        <img src="imgs/gd_quadratic.png" alt="..." style="max-width: 50%;">
-        <figcaption>Additional examples of edge of stability on a variety of tasks and models. Note that whenever the sharpness exceeds the learning rate threshold, the training becomes unstable. For practical learning rates, this appears to always occur.</figcaption>
-    </figure>
+    <p>While neural network training is generally very difficult to analyze, it turns out we can understand several properties of this regime. In this article, we'll build up an explanation from first principles, run experiments directly in the browser, and see what this regime tells us about why certain training choices like adaptive optimizers work as well as they do.</p>
 
     <!-- ==================== SECTION: Edge of Stability  ==================== -->
 
     <h2>Understanding Gradient Descent</h2>
 
-    <p>We begin with gradient descent. Parameters $w_i$ are updated according to</p>
-
+    <p>We begin with gradient descent, and discuss modifications like SGD and adaptive gradients later. Parameters $w_i$ are updated according to</p>
+    
     $$w_{i+1} = w_i - \eta \nabla L(w_i)$$
 
-    <p>where $\eta$ is the learning rate and $L$ is the loss. In the limit that $\eta \to 0$, we have a differential equation called gradient flow, which is much easier to analyze.</p>
+    <p>where $\eta$ is the learning rate and $L$ is the loss. This is a simple rule, but analyzing its behavior on neural networks is not. To see this, consider the limit where $\eta \to 0$, where it becomes a continuous differential equation called gradient flow:</p>
 
     $$\frac{d w(t)}{dt} = - \nabla L(w(t))$$
 
-    <p>Unfortunately, understanding the general behaviour of this equation is extremely different. For a network with 1 million parameters, this is a million-dimensional nonlinear differential equation where the different weight dynamics are coupled. This is hard even in toy models where we can perfectly describe the data distribution, let alone real world data which produces very complex loss functions.</p>
+    <p>A network with 100 parameters is thus described by a 100-dimensional nonlinear differential equation where the different weight dynamics are nontrivially coupled. Analyzing this is hard even for small models with synthetic data. And this is ignoring the difficulties of nonzero learning rates, which introduce their own discretization instabilities on top of all of this.</p>
 
-    <p>However, we can make useful statements. For example, we know that the loss is guaranteed to decrease at every step - this actually applies even at finite learning rates, so long as the learning rate is not higher than the curvature. ADD THE PRECISE MATHEMATICAL STATEMENT HERE WITH CITATION.</p>
+    <p>Despite this, classical optimization theory gives us one useful foothold: if the learning rate is small enough relative to the curvature of the loss, gradient descent is guaranteed to decrease the loss at every step.<sup><a href="#footnote-smoothness">[N]</a></sup> In other words, curvature determines how aggressively we can optimize.</p>
 
-    <p>What does the finite learning rate <em>do</em>? To answer this, consider a 1D quadratic $L(w) = \frac{1}{2}Sw^2$, where $S$ controls the curvature. The update rule becomes</p>
+    <p>Why does curvature matter? To build intuition, consider a 1D quadratic $L(w) = \frac{1}{2}Sw^2$, where $S$ controls the curvature. The update rule becomes</p>
 
     $$w_{i+1} = w_i - \eta S w_i \implies w_{n} = (1 - \eta S)^n w_0$$
 
     <p>which converges to the minimum $w = 0$ only if</p>
 
-    $$|1 - \eta S| < 1 \implies \eta < \frac{2}{S}$$
+    $$|1 - \eta S| < 1 \implies S < \frac{2}{\eta}$$
 
-    <p>If the learning rate is small relative to the curvature, gradient descent converges. If it's too large, the updates overshoot and oscillate.</p>
+    <p>If the learning rate is small relative to the curvature, gradient descent converges. If it's too large, the updates overshoot and oscillate around the minimum. If the curvature exceeds $2/\eta$, these oscillations grow, resulting in divergence.</p>
     
     <figure class="tutorial-figure">
       <img src="imgs/gd_quadratic.png" alt="..." style="max-width: 50%;">
-      <figcaption><strong>Left:</strong> For small enough step sizes (relative to the curvature of the quadratic) gradient descent steadily approaches the minimum of the quadratic. <strong>Right:</strong> If the step size is too large, the optimized parameter does not converge but instead oscillates and diverges.</figcaption>
+      <figcaption><strong>Left:</strong> For small enough step sizes (relative to the curvature of the quadratic) gradient descent steadily approaches the minimum of the quadratic. <strong>Right:</strong> If the step size is too large, the optimized parameter does oscillates with growing amplitude, diverging.</figcaption>
     </figure>
 
     <p>For a multidimensional quadratic loss $L(w) = \frac{1}{2}w^\top A w$, where $A = \nabla^2 L$ is the Hessian, the update is</p>
 
     $$w_{i+1} = (I - \eta A)w_i$$
 
-    <p>Since $A$ is symmetric, we can decompose $w$ along its eigenvectors. Each component $w_i^k$ (along eigenvector $k$ with eigenvalue $\lambda_k$) evolves independently, exactly like the 1D case:</p>
+    <p>Since all Hessians are symmetric, we can decompose $w$ along its eigenvectors. Each component $w_i^k$ (along eigenvector $k$ with eigenvalue $\lambda_k$) evolves independently, exactly like the 1D case:</p>
 
     $$w_{i+1}^{k} = (1 - \eta \lambda_{k})w_{i}^{k}$$
 
-    <p>Every component needs to converge, so the binding constraint comes from the largest eigenvalue:</p>
+    <p>Every component needs to converge, so the tightest constraint comes from the largest eigenvalue:</p>
 
-    $$\eta < \frac{2}{\lambda_{\max}(A)}$$
+    $$\lambda_{\max}(A) < \frac{2}{\eta}$$
 
-    <p>This quantity $\lambda_{\max}(A)$ &mdash; the largest eigenvalue of the Hessian &mdash; controls whether gradient descent converges or diverges. We call it the <strong>sharpness</strong>, and it's going to be the central quantity in this tutorial.</p>
+    <p>We call the largest eigenvalue $\lambda_{\max}(A)$ the <strong>sharpness</strong>. It controls whether gradient descent converges or diverges on a quadratic, and as we saw in the opening figure, it accurately predicts when gradient descent on neural networks starts to behave erratically. This gives us the defining condition of the edge of stability: it occurs when the sharpness exceeds $2/\eta$.</p>
 
     <figure class="tutorial-figure">
       <img src="imgs/2d_quadratic_optim.png" alt="Gradient descent on a 2D quadratic showing divergence along the sharpest eigenvector" style="max-width: 30%;">
       <figcaption>In the multi-dimensional case, gradient descent is unstable as long as one eigenvalue is too large.</figcaption>
     </figure>
 
+    <h3>Progressive Sharpening</h3>
+
+    <p>This quadratic analysis has led past work to suggest choosing the learning rate by first calculating the Hessian eigenvalue $\lambda_{\max}$. Setting $\eta = 1/\lambda_{\max}$ results in the fastest convergence on a quadratic, avoiding any oscillations (even those that slowly decay).</p>
+
+    <p>However, real loss landscapes are not quadratics. Their curvature varies over training, making this proposal impractical since it would require frequent and expensive Hessian computations to adapt to the changing curvature.</p>
     
-    <p>Real deep learning losses aren't quadratics, but we can always take a quadratic Taylor approximation around the current weights. If this approximation is reasonable, the same stability condition should apply locally: when the sharpness at the current weights exceeds $2/\eta$, we'd expect gradient descent to oscillate and diverge along the top Hessian eigenvector.</p>
-
-    NEW SECTION HERE ON EDGE OF STABILITY AND PROGRESSIVE SHARPENING
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    
-    The algorithm has many virtues, but speed is not one of them. It is simple — when optimizing a smooth function ff, we make a small step in the gradient
-wk+1=wk−α∇f(wk).w​k+1​​=w​k​​−α∇f(w​k​​).
-For a step-size small enough, gradient descent makes a monotonic improvement at every iteration. It always converges, albeit to a local minimum. And under a few weak curvature conditions it can even get there at an exponential rate. 
-
-
-
-    The Edge of Stability is related to the curvature of the loss landscape, called the sharpness. If we perform gradient descent with infinitely small step sizes, then the loss is guaranteed to decrease. This regime is called gradient flow, and simplifies the analysis of training dynamics.
-    
-    However, in practice we have to take finite step sizes (learning rate $\eta > 0$). This produces issues when the loss landscape is too sharp, 
-
-    This finite step size causes a problem if our loss landscape is not very smooth.
-
-
-    
-    
-
-
-
-
-    And even though neural network training is generally very complex, these dynamics can be successfully characterized across a large variety of tasks and models. 
-    
-    
-    Furthermore, while studying neural network training behaviour is complex, there are very interesting behaviours that occur between these two extremes, and that most practical learning rates actually lie in this regime.
-
-    It turns out that most practical learning rates also result in interesting optimization dyanmics. Furthermore, while studying neural network training behaviour is complex, 
-    
-    It turns out that most practical learning rates actually lie in an interesting regime that occurs between these two extremes.
-    
-    
-    
-    rate that is "small enough" to ensure stable training. Too small of a learning rate results in slow and inefficient training, while too large of a learning rate results in unstable training that diverges. But what does "too large" actually mean?
-
-    It turns out that most practical learning rates actually lie in an interesting regime that occurs between these two extremes. Although studying neural network training behaviour is complex
-
-    
-    
-    
-    there are very interesting behaviours that occur between these two extremes, and that most practical learning rates actually lie in this regime.
-    
-    
-    But what does "too large" actually mean? What happens when we cross that threshold? And why do we even have to worry about this in the first place, given that deep learning losses are non-convex and complex?
-    If you choose too small of a learning rate, then training is slow and inefficient. If you choose too large of a learning rate, then training becomes unstable and diverges. 
-    
-    
-    But what does "too large" actually mean? What happens when we cross that threshold? And why do we even have to worry about this in the first place, given that deep learning losses are non-convex and complex?
-    
-
-    <p> Although the general behaviour of neural network training is complex and nonlinear, focusing on the right aspects of the training dynamics can allow us to make general statements about how training behaves, and derive useful intuition on the role of hyperparameters. In this introduction, we'll discuss one such example: the <strong>edge of stability</strong> phenomenon, which is closely linked with the learning rate.</p>
-      
-    <p> We can see this phenomenon above: while the exact training curve is complex, we are able to derive a condition on the curvature of the loss landscape (right dashed line) that predicts when the training dynamics become unstable, resulting in spiky behaviour on the training loss curve.</p>
-
-    <p>You'll be training neural networks directly in the browser as we go, and can play around with the parameters and more complex tasks for yourself at the end.</p>
-
-    <p class="tutorial-note"><strong>Note:</strong> We'll use a simple task throughout to keep things fast. However, the phenomenon we discuss is general and appears to hold for more complex models encountered in practice. We'll include evidence of this from the lierature, and you can try slower, more complex tasks at the end.</p>
-
-    <h2>What is the Edge of Stability?</h2>
-
-    
-
-    <!-- ==================== SECTION: Gradient Descent ==================== -->
-
-    <h2>Gradient Descent &mdash; Quadratic Approximations</h2>
-
-    <p>To understand what's going on, we need some intuition for the curvature of the loss landscape. Under gradient descent, parameters $w_i$ are updated according to</p>
-
-    $$w_{i+1} = w_i - \eta \nabla L(w_i)$$
-
-    <p>where $\eta$ is the learning rate and $L$ is the loss. What does the learning rate actually <em>do</em>? To answer this, consider a 1D quadratic $L(w) = \frac{1}{2}Sw^2$, where $S$ controls the curvature. The update rule becomes</p>
-
-    $$w_{i+1} = w_i - \eta S w_i \implies w_{n} = (1 - \eta S)^n w_0$$
-
-    <p>which converges to the minimum $w = 0$ only if</p>
-
-    $$|1 - \eta S| < 1 \implies \eta < \frac{2}{S}$$
-
-    <p>If the learning rate is small relative to the curvature, gradient descent converges. If it's too large, the updates overshoot and oscillate.</p>
+    <p>In fact, inspecting curvature over real training runs reveals an interesting trend - for many tasks, it tends to increase over time. We call this phenomenon <strong>progressive sharpening</strong>. It occurs across a large variety of tasks and models, and appears to be more pronounced for deeper networks.</p>
 
     <figure class="tutorial-figure">
-      <img src="imgs/gd_quadratic.png" alt="..." style="max-width: 50%;">
-      <figcaption><strong>Left:</strong> For small enough step sizes (relative to the curvature of the quadratic) gradient descent steadily approaches the minimum of the quadratic. <strong>Right:</strong> If the step size is too large, the optimized parameter does not converge but instead oscillates and diverges.</figcaption>
-    </figure>
-
-    <p>For a multidimensional quadratic loss $L(w) = \frac{1}{2}w^\top A w$, where $A = \nabla^2 L$ is the Hessian, the update is</p>
-
-    $$w_{i+1} = (I - \eta A)w_i$$
-
-    <p>Since $A$ is symmetric, we can decompose $w$ along its eigenvectors. Each component $w_i^k$ (along eigenvector $k$ with eigenvalue $\lambda_k$) evolves independently, exactly like the 1D case:</p>
-
-    $$w_{i+1}^{k} = (1 - \eta \lambda_{k})w_{i}^{k}$$
-
-    <p>Every component needs to converge, so the binding constraint comes from the largest eigenvalue:</p>
-
-    $$\eta < \frac{2}{\lambda_{\max}(A)}$$
-
-    <p>This quantity $\lambda_{\max}(A)$ &mdash; the largest eigenvalue of the Hessian &mdash; controls whether gradient descent converges or diverges. We call it the <strong>sharpness</strong>, and it's going to be the central quantity in this tutorial.</p>
-
-    <figure class="tutorial-figure">
-      <img src="imgs/2d_quadratic_optim.png" alt="Gradient descent on a 2D quadratic showing divergence along the sharpest eigenvector" style="max-width: 30%;">
-      <figcaption>In the multi-dimensional case, gradient descent is unstable as long as one eigenvalue is too large.</figcaption>
-    </figure>
-
-    <!-- Local Stability (subsection) -->
-
-    <!-- <h3>Local Stability</h3>-->
-
-    <p>Real deep learning losses aren't quadratics, but we can always take a quadratic Taylor approximation around the current weights. If this approximation is reasonable, the same stability condition should apply locally: when the sharpness at the current weights exceeds $2/\eta$, we'd expect gradient descent to oscillate and diverge along the top Hessian eigenvector.</p>
-
-    <p>So why does gradient descent work in deep learning? One explanation from classical optimization theory is that gradient descent stays in "stable regions" of weight space - where sharpness $< 2 / \eta$. As we're about to see, this isn't what happens.</p>
-
-    <!--
-    <figure class="tutorial-figure">
-      <img src="imgs/stable_region.png" alt="Cartoon of gradient descent staying within the stable region of weight space" style="max-width: 40%;">
-      <figcaption>The classical picture: gradient descent stays within regions where the sharpness is below the critical threshold ("local $L$-smoothness").</figcaption>
-    </figure>-->
-     <!--
-    <p class="tutorial-note"><strong>Personal Note:</strong> This approximation is only guaranteed to be good when the step size is small and the higher order Taylor terms are small. So it's not actually clear why this should be a good proxy, and indeed, it's not a good proxy for ReLU, where there are probably many higher order Taylor terms.</p>-->
-
-    <!-- ==================== SECTION: Progressive Sharpening ==================== -->
-
-   <h2> Edge of Stability and Progressive Sharpening</h2>
-
-    <p>In real loss functions, we instead usually observe the following two phenomena:</p>
-    <ul style="margin-left: 1.5em;">
-      <li><strong>Progressive Sharpening:</strong> When sharpness is less than $2/\eta$, it tends to continually increase throughout training.</li>
-      <li><strong>Edge of Stability:</strong> When sharpness rises above $2/\eta$, gradient descent becomes unstable as predicted by the quadratic approximation.</li>
-    </ul>
-
-    <p><strong>Experiments:</strong> Let's see this for ourselves. Below, we train a small MLP on a Chebyshev polynomial regression task ($y = \cos(k \arccos x)$, a function that oscillates more as $k$ increases). Watch how the sharpness climbs steadily toward $2/\eta$, and what happens when it gets there.</p>
-
-    <!-- Base Experiment: Progressive Sharpening + Edge of Stability
-         Task: Chebyshev degree 4, 20 points, full-batch
-         Model: tanh, 2 hidden layers (30 + 30), seed 0
-         LR: 0.15, max steps: 5000
-         Hessian: kEigs=1
-         Charts: train loss (no test, no EMA), sharpness (1 eigenvalue + 2/η)
-    -->
-    <div class="tutorial-widget">
-      <div class="tutorial-widget-controls">
-        <button id="base-experiment-start" class="sim-button">start</button>
-        <button id="base-experiment-reset" class="sim-button">reset</button>
-        <span id="base-experiment-info" class="tutorial-widget-info"></span>
-      </div>
-      <div class="tutorial-widget-charts">
-        <div class="tutorial-widget-chart">
-          <div class="plot-box">
-            <div class="plot-content">
-              <canvas id="base-experiment-loss" class="plot-canvas"></canvas>
-              <div class="y-axis-label y-axis-label-loss">loss $\mathcal{L}$</div>
-              <div class="x-axis-label">step</div>
-            </div>
-          </div>
-        </div>
-        <div class="tutorial-widget-chart">
-          <div class="plot-box">
-            <div class="plot-content">
-              <canvas id="base-experiment-sharpness" class="plot-canvas"></canvas>
-              <div class="y-axis-label y-axis-label-norms">sharpness</div>
-              <div class="x-axis-label">step</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <p>Notice the instability of training results in sudden spikes in the loss. But zoom out and the loss is still decreasing over time. Meanwhile, the sharpness doesn't keep growing: it oscillates around $2/\eta$, as if something is pushing it back down whenever it overshoots.</p>
-
-    <p> This suggests networks self-stabilize at the critical sharpness threshold and are able to optimize at this boundary. We call these dynamics training at the <strong>edge of stability</strong> (EOS).<sup><a href="#ref-cohen2021">[1]</a></sup></p>
-
-    <figure class="tutorial-figure">
-      <div style="display: flex; gap: 1em; justify-content: center; align-items: center;">
-        <img src="imgs/stable_region.png" alt="Classical picture: gradient descent stays inside the stable region" style="max-width: 40%;">
-        <img src="imgs/selfstable_region.png" alt="Edge of stability: trajectory oscillates along the boundary" style="max-width: 40%;">
-      </div>
-      <figcaption><strong>Left:</strong> the classical picture — gradient descent stays comfortably inside the stable region where $\lambda_{\max} < 2/\eta$. <strong>Right:</strong> what actually happens — the trajectory reaches the boundary and oscillates along it, repeatedly exiting and being steered back in. Figures from <a href="https://centralflows.github.io/part1/">Cohen et al (2024).</a></figcaption>
+      <img src="imgs/ps_examples.png" alt="Examples of progressive sharpening" style="max-width: 50%;">
+      <figcaption>Placeholder figure to show that many different tasks exhibit sharpening.</figcaption>
     </figure>
     
-    <p class="tutorial-note"><strong>Open Question:</strong> Why do networks tend to sharpen during training? Toy counterexamples exist, but the trend is consistent enough across realistic tasks that it calls for explanation.</p>
+    <p>While the reasons for progressive sharpening are not fully understood, the consequence is clear: most practical learning rates, which start out well behaved, will eventually reach the $2/\eta$ threshold. Learning rates that avoid this threshold are so small that training becomes impractically slow. This makes the edge of stability an inevitable part of training for any practical learning rate.</p>
 
-    <p>While we don't understand why networks tend to sharpen, we do understand what counteracts this tendency at the edge of stability. Up until now we've considered the second order expansion of our training loss, which yields a term that results in oscillations. It turns out that a third order expansion yields a term proportional to $\nabla \lambda_{\max}$ - the gradient of the sharpness. This term is proportional to the strength of the oscillations. <sup><a href="#ref-damian2022">[2]</a></sup></p>
+    <h3>Edge of Stability and Self Stabilization</h3>
 
-    <p>Thus gradient descent on our training loss implicitly performs gradient descent on the sharpness as well, with strength proportional to the oscillations. This is how networks self-stabilize: oscillations at the edge of stability automatically push the sharpness back down.</p>
+    <p>Does this mean that we need to constantly reduce our LR over time? While this is possible, it turns out some interesting things happen beyond the 2/eta threshold. You can see this for yourself in the bottom experiment</p>
 
-    <p>We can see this mechanism directly. The third plot below tracks how much each gradient step points along the top Hessian eigenvector &mdash; the direction of maximum curvature. Once sharpness nears $2/\eta$ (the eigenvector is locked in at that moment), watch for the gradient to repeatedly alternate sign along this direction: that oscillation is exactly what drives the sharpness back down each time it overshoots.</p>
+    <p>After hitting the threshold, the sharpness doesn't keep growing, but instead oscillates around the threshold. This suggests that there is some kind of self-stabilization mechanism that pushes the sharpness back down whenever it tries to grow too large.</p>
 
-    <!-- Eigenvector Widget: Loss + Sharpness + Gradient Projection
-         Task: Chebyshev degree 6, 20 points, full-batch (CHEBYSHEV_DEFAULTS)
-         Model: tanh, 2 hidden layers (30 + 20), lr = 0.2, seed 0
-         Hessian: kEigs=1, sharpnessProximityThreshold=0.05
-         Charts:
-           1. train loss (no test, no EMA)
-           2. sharpness (1 eigenvalue + 2/η)
-           3. gradient projection: cosine similarity cos(∇L, v̂) [left axis]
-                                   + grad norm ‖∇L‖ [right axis]
-              — empty until eigenvector is captured
-    -->
-    <div class="tutorial-widget">
-      <div class="tutorial-widget-controls">
-        <button id="eigenvector-start" class="sim-button">start</button>
-        <button id="eigenvector-reset" class="sim-button">reset</button>
-        <span id="eigenvector-info" class="tutorial-widget-info"></span>
-      </div>
-      <div class="tutorial-widget-charts">
-        <div class="tutorial-widget-chart">
-          <div class="plot-box">
-            <div class="plot-content">
-              <canvas id="eigenvector-loss" class="plot-canvas"></canvas>
-              <div class="y-axis-label y-axis-label-loss">loss $\mathcal{L}$</div>
-              <div class="x-axis-label">step</div>
-            </div>
-          </div>
-        </div>
-        <div class="tutorial-widget-chart">
-          <div class="plot-box">
-            <div class="plot-content">
-              <canvas id="eigenvector-sharpness" class="plot-canvas"></canvas>
-              <div class="y-axis-label y-axis-label-norms">sharpness</div>
-              <div class="x-axis-label">step</div>
-            </div>
-          </div>
-        </div>
-        <div class="tutorial-widget-chart">
-          <div class="plot-box">
-            <div class="plot-content">
-              <canvas id="eigenvector-projection" class="plot-canvas"></canvas>
-              <div class="y-axis-label" style="left: -42px;">$\cos(\nabla\mathcal{L},\,\hat{v})$</div>
-              <div class="x-axis-label">step</div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div id="eigenvector-capture-info" class="eigenvector-capture-info"></div>
-      <figcaption style="margin-top:0.6em; font-size:0.88em; color:#555; text-align:center;">
-        The third plot shows the cosine similarity between the gradient and the top Hessian eigenvector $\hat{v}$ (purple, left axis) and the gradient norm $\|\nabla\mathcal{L}\|$ (orange, right axis). Both are recorded only after the eigenvector is locked in. Rapid sign flips in the cosine similarity reflect the oscillation that implicitly reduces sharpness.
-      </figcaption>
-    </div>
+    <p>This mechanism doesn't exist in the quadratics we used to understand the presence of the edge of stability, but it does exist in real networks. This suggests that the quadratic approximation isn't useful here, and we need to go to higher order terms. It turns out that the third order term is sufficient to explain this self stabilization mechanism.</p>
+
+    <p>We'll outline the argument here.</p>
+
+    <p>We can understand this mechanism by looking at a third order Taylor expansion of the loss, which reveals a term proportional to the gradient of the sharpness. This means that when the sharpness tries to grow, it creates a gradient signal that pushes it back down.</p>
+
+    <p>Other eigenvalues - here. We don't have a good theory for this - some parts of the above derivation break down.</p>
 
     <p>These two effects also occur for other eigenvalues - they progressively sharpen, until they reach the threshold and self-stabilize. When multiple eigenvalues are at the edge simultaneously, the training loss becomes extremely chaotic. You'll see this in the next experiment, which tracks three eigenvalues at once.</p>
       
@@ -444,6 +201,9 @@ For a step-size small enough, gradient descent makes a monotonic improvement at 
     <!-- ==================== SECTION: Relation to Gradient Flow ==================== -->
 
     <h2>Relation to Gradient Flow</h2>
+
+    Revise this. We've talked about gradient flow. We can use it to study how progressive sharpening happens.
+
 
     <p>In the limit of infinitesimal learning rates, gradient descent becomes a continuous differential equation called <strong>gradient flow</strong>:</p>
 
@@ -500,7 +260,9 @@ For a step-size small enough, gradient descent makes a monotonic improvement at 
 
     <!-- ==================== SECTION: Observations ==================== -->
 
-    <h2>Observations On The Edge Of Stability And Progressive Sharpening</h2>
+    <h2>Related Phenomena </h2>
+    Maybe we don't need this. We include the speculative details in progressive sharpening. Then here, we just discuss catapults and other optimizers. We can look through central flows and discuss the central flows ideas, and how it's important for adaptive optimizers.
+
 
     <p> Although the existence of the edge of stability (from the second order Taylor expansion) and the self stabilizing effect at the edge (from the third order terms) are well established, a lot is still unknown about this phenomenon. Here, we give a brief summary of various parameters of interest, and related open questions. </p>
       
@@ -836,6 +598,12 @@ For a step-size small enough, gradient descent makes a monotonic improvement at 
   <!-- ==================== FOOTNOTES ==================== -->
 
   <h2>Footnotes</h2>
+  <details class="accordion" id="footnote-smoothness">
+    <summary>On the Guaranteed Loss Decreases</summary>
+    <div class="accordion-body">
+      <p>More precisely, if $\nabla L$ is $M$-Lipschitz continuous (i.e., the curvature is bounded everywhere by $M$), then choosing $\eta < \frac{2}{M}$ guarantees monotone descent. This is a <em>global</em> condition &mdash; it requires a learning rate conservative enough to work everywhere in parameter space. The $\frac{2}{\lambda_{\max}}$ threshold from the quadratic analysis is a <em>local</em> condition: it depends on the curvature at the current iterate, which changes during training. The two thresholds coincide when the current iterate happens to be at the point of maximum curvature.</p>
+    </div>
+  </details>
   <details class="accordion" id="footnote-hessian">
     <summary>On Hessian Eigenvalue Computation</summary>
     <div class="accordion-body">
