@@ -130,7 +130,7 @@
       <figcaption>In the multi-dimensional case, gradient descent is unstable as long as one eigenvalue is too large.</figcaption>
     </figure>
 
-    <h3>Progressive Sharpening</h3>
+    <h2>Progressive Sharpening</h2>
 
     <p>This quadratic analysis has led past work to suggest choosing the learning rate by first calculating the Hessian eigenvalue $\lambda_{\max}$. Setting $\eta = 1/\lambda_{\max}$ results in the fastest convergence on a quadratic, avoiding any oscillations (even those that slowly decay).</p>
 
@@ -145,7 +145,7 @@
     
     <p>While the reasons for progressive sharpening are not fully understood, the consequence is clear: most practical learning rates, which start out well behaved, will eventually reach the $2/\eta$ threshold. Learning rates that avoid this threshold are so small that training becomes impractically slow. This makes the edge of stability an inevitable part of training for any practical learning rate.</p>
 
-    <h3>Edge of Stability and Self Stabilization</h3>
+    <h2>Edge of Stability and Self Stabilization</h2>
 
     <p>Does this mean that we need to constantly reduce our LR over time? While this is possible, it turns out some interesting things happen beyond the 2/eta threshold. You can see this for yourself in the bottom experiment</p>
 
