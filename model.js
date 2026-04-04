@@ -6,7 +6,12 @@
 //
 // Initialization (muP-inspired):
 //   All layers: W_ij ~ N(0, 1 / fan_in)
-//   All biases: b_i = 0
+//   All biases: b_i = 0 (frozen at 0 when useBias is false, e.g. linear activation)
+//
+// The useBias flag defaults to false for activation === 'linear' (deep linear
+// networks), matching the standard formulation f(x) = W_L...W_1 x with no
+// bias terms. For all other activations it defaults to true. The flag can be
+// overridden explicitly via the options object: new MLP(sizes, act, seed, scale, { useBias: true }).
 //
 // Usage:
 //   const net = new MLP([1, 100, 1]);                // tanh by default
@@ -22,12 +27,17 @@ export class MLP {
    *   Middle elements are hidden layer widths.
    * @param {string} activation - 'tanh' (default) or 'relu'
    */
-  constructor(layerSizes, activation = 'tanh', seed = null, initScale = 1.0) {
+  constructor(layerSizes, activation = 'tanh', seed = null, initScale = 1.0, { useBias } = {}) {
     this.layerSizes = layerSizes;
     this.numLayers = layerSizes.length - 1; // number of weight matrices
     // Activation type stored for forward pass
     this.activation = activation;
     this.initScale = initScale;
+
+    // Whether biases are trainable. Defaults to false for deep linear networks
+    // (activation === 'linear') to match the standard formulation f(x) = W_L...W_1 x.
+    // For all other activations, defaults to true.
+    this.useBias = useBias !== undefined ? useBias : (activation !== 'linear');
 
     // Seeded PRNG for reproducible initialization
     if (seed !== null) {
@@ -174,7 +184,9 @@ export class MLP {
       const rows = this.W[l].length;
       const cols = this.W[l][0].length;
       count += rows * cols;  // weights
-      count += this.b[l].length;  // biases
+      if (this.useBias) {
+        count += this.b[l].length;  // biases (only if trainable)
+      }
     }
     return count;
   }

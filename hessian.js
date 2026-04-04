@@ -12,10 +12,12 @@
 
 /**
  * Flatten model parameters into a single array.
- * Order: for each layer l, all W[l] entries row-major, then all b[l] entries.
+ * Order: for each layer l, all W[l] entries row-major, then all b[l] entries
+ * (b[l] only included when model.useBias is true).
  */
 function flattenParams(model) {
   const flat = [];
+  const ub = model.useBias;
   for (let l = 0; l < model.numLayers; l++) {
     const rows = model.W[l].length;
     const cols = model.W[l][0].length;
@@ -24,8 +26,10 @@ function flattenParams(model) {
         flat.push(model.W[l][i][j]);
       }
     }
-    for (let i = 0; i < rows; i++) {
-      flat.push(model.b[l][i]);
+    if (ub) {
+      for (let i = 0; i < rows; i++) {
+        flat.push(model.b[l][i]);
+      }
     }
   }
   return flat;
@@ -36,6 +40,7 @@ function flattenParams(model) {
  */
 function unflattenParams(model, flat) {
   let idx = 0;
+  const ub = model.useBias;
   for (let l = 0; l < model.numLayers; l++) {
     const rows = model.W[l].length;
     const cols = model.W[l][0].length;
@@ -44,8 +49,10 @@ function unflattenParams(model, flat) {
         model.W[l][i][j] = flat[idx++];
       }
     }
-    for (let i = 0; i < rows; i++) {
-      model.b[l][i] = flat[idx++];
+    if (ub) {
+      for (let i = 0; i < rows; i++) {
+        model.b[l][i] = flat[idx++];
+      }
     }
   }
 }

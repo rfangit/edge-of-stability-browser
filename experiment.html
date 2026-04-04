@@ -518,6 +518,87 @@
       </div>
     </div>
 
+    <!-- ================================================================ -->
+    <!-- Function 5 — L = exp(x²/σ²) y²                                  -->
+    <!-- ================================================================ -->
+
+    <h2>Function 5 — $L(x,y) = e^{x^2/\sigma^2}\, y^2$</h2>
+    <p>Minimum: $y = 0$ for all $x$. The basin is <em>shallowest at the centre</em> ($x=0$) and steepens rapidly as $|x|$ grows — the opposite of a standard Gaussian bowl. $\sigma$ controls how quickly the steepening occurs. Both plots use a <strong>linear scale</strong> red-white-blue colourmap, autoscaled to the viewport range.</p>
+
+    <div class="dsn-experiment">
+      <div class="dsn-controls">
+        <div class="dsn-slider-group">
+          <label for="dsn5-eta-slider">$\eta$:</label>
+          <input type="range" id="dsn5-eta-slider" min="0.01" max="1.0" step="0.01" value="0.2" style="width:160px;">
+          <span id="dsn5-eta-value" class="dsn-value-display">0.200</span>
+        </div>
+        <div class="dsn-slider-group">
+          <label for="dsn5-sigma-slider">$\sigma$:</label>
+          <input type="range" id="dsn5-sigma-slider" min="0.1" max="3.0" step="0.05" value="1.0" style="width:160px;">
+          <span id="dsn5-sigma-value" class="dsn-value-display">1.00</span>
+        </div>
+      </div>
+
+      <div class="dsn-canvas-row">
+        <div class="dsn-landscape-wrap">
+          <div class="dsn-canvas-label">loss</div>
+          <canvas id="dsn5-loss-bg" class="dsn-bg" width="340" height="340"></canvas>
+          <canvas id="dsn5-loss-ov" class="dsn-ov" width="340" height="340"></canvas>
+          <div class="dsn-x-label">$x$</div>
+          <div class="dsn-y-label">$y$</div>
+          <div class="dsn-tick dsn-tick-x" style="left:0%">-2</div>
+          <div class="dsn-tick dsn-tick-x" style="left:25%">-1</div>
+          <div class="dsn-tick dsn-tick-x" style="left:50%">0</div>
+          <div class="dsn-tick dsn-tick-x" style="left:75%">1</div>
+          <div class="dsn-tick dsn-tick-x" style="left:100%">2</div>
+          <div class="dsn-tick dsn-tick-y" style="top:0%">2</div>
+          <div class="dsn-tick dsn-tick-y" style="top:25%">1</div>
+          <div class="dsn-tick dsn-tick-y" style="top:50%">0</div>
+          <div class="dsn-tick dsn-tick-y" style="top:75%">-1</div>
+          <div class="dsn-tick dsn-tick-y" style="top:100%">-2</div>
+        </div>
+
+        <div class="dsn-landscape-wrap">
+          <div class="dsn-canvas-label">sharpness $\lambda_{\max}$</div>
+          <canvas id="dsn5-sharp-bg" class="dsn-bg" width="340" height="340"></canvas>
+          <canvas id="dsn5-sharp-ov" class="dsn-ov" width="340" height="340"></canvas>
+          <div class="dsn-x-label">$x$</div>
+          <div class="dsn-y-label">$y$</div>
+          <div class="dsn-tick dsn-tick-x" style="left:0%">-2</div>
+          <div class="dsn-tick dsn-tick-x" style="left:25%">-1</div>
+          <div class="dsn-tick dsn-tick-x" style="left:50%">0</div>
+          <div class="dsn-tick dsn-tick-x" style="left:75%">1</div>
+          <div class="dsn-tick dsn-tick-x" style="left:100%">2</div>
+          <div class="dsn-tick dsn-tick-y" style="top:0%">2</div>
+          <div class="dsn-tick dsn-tick-y" style="top:25%">1</div>
+          <div class="dsn-tick dsn-tick-y" style="top:50%">0</div>
+          <div class="dsn-tick dsn-tick-y" style="top:75%">-1</div>
+          <div class="dsn-tick dsn-tick-y" style="top:100%">-2</div>
+        </div>
+      </div>
+
+      <div class="dsn-chart-row">
+        <div class="dsn-chart-wrap">
+          <div class="plot-box" style="height:100%; padding:12px 12px 28px 44px;">
+            <div class="plot-content">
+              <canvas id="dsn5-loss-chart" class="plot-canvas"></canvas>
+              <div class="y-axis-label y-axis-label-loss" style="font-size:12px;">loss</div>
+              <div class="x-axis-label" style="font-size:12px;">step</div>
+            </div>
+          </div>
+        </div>
+        <div class="dsn-chart-wrap">
+          <div class="plot-box" style="height:100%; padding:12px 12px 28px 44px;">
+            <div class="plot-content">
+              <canvas id="dsn5-eig-chart" class="plot-canvas"></canvas>
+              <div class="y-axis-label y-axis-label-norms" style="font-size:12px;">$\lambda_{\max}$</div>
+              <div class="x-axis-label" style="font-size:12px;">step</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </div><!-- .tutorial-content -->
 </div><!-- .container -->
 

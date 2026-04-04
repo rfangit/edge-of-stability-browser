@@ -219,8 +219,10 @@ export class Trainer {
           flat.push(this.gradW[l][i][j] / N);
         }
       }
-      for (let i = 0; i < rows; i++) {
-        flat.push(this.gradB[l][i] / N);
+      if (model.useBias) {
+        for (let i = 0; i < rows; i++) {
+          flat.push(this.gradB[l][i] / N);
+        }
       }
     }
 
@@ -339,6 +341,7 @@ export class Trainer {
     //    lastGradFlat is η-scaled so it equals the actual weight *update* vector
     //    (Δθ = −η·g), matching what Simulation uses for projection.
     const flatGrad = [];
+    const ub = model.useBias;
     for (let l = 0; l < numLayers; l++) {
       const rows = model.W[l].length;
       const cols = model.W[l][0].length;
@@ -353,8 +356,10 @@ export class Trainer {
           flatGrad.push(this.gradW[l][i][j]);
         }
       }
-      for (let i = 0; i < rows; i++) {
-        flatGrad.push(this.gradB[l][i]);
+      if (ub) {
+        for (let i = 0; i < rows; i++) {
+          flatGrad.push(this.gradB[l][i]);
+        }
       }
     }
     this.lastGradFlat = flatGrad;
@@ -364,7 +369,7 @@ export class Trainer {
       const rows = model.W[l].length;
       const cols = model.W[l][0].length;
       for (let i = 0; i < rows; i++) {
-        model.b[l][i] -= this.eta * this.gradB[l][i];
+        if (ub) model.b[l][i] -= this.eta * this.gradB[l][i];
         for (let j = 0; j < cols; j++) {
           model.W[l][i][j] -= this.eta * this.gradW[l][i][j];
         }

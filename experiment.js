@@ -192,8 +192,17 @@ class LandscapeCanvas {
       }
     }
 
-    const vMid  = (vMin + vMax) / 2;
-    const vHalf = Math.max((vMax - vMin) / 2, 1e-6);
+    // If a fixed whitePoint is specified, use it as the centre directly.
+    // Otherwise fall back to the midpoint of the range.
+    let vMid;
+    if (this.cfg.whitePoint !== undefined) {
+      vMid = useLog
+        ? Math.log10(Math.max(this.cfg.whitePoint, 1e-10))
+        : this.cfg.whitePoint;
+    } else {
+      vMid = (vMin + vMax) / 2;
+    }
+    const vHalf = Math.max(Math.max(vMax - vMid, vMid - vMin), 1e-6);
 
     // Pass 2: map to colour
     const img = ctx.createImageData(W, H);
@@ -562,8 +571,42 @@ function dsn4MaxEig(x, y, p) {
 }
 
 // ============================================================================
-// INIT
+// Function 5 — L(x, y) = exp(x²/σ²) y²
 // ============================================================================
+// f(x) = exp(x²/σ²) — a Gaussian envelope inverted: widest basin at x=0,
+// sharpening toward the edges. Minimum is y=0 for all x, but the bowl is
+// shallowest at the centre and steepens rapidly as |x| grows.
+//
+// σ controls the rate of growth — small σ means fast steepening.
+//
+// ∂L/∂x    = (2x/σ²) exp(x²/σ²) y²
+// ∂L/∂y    = 2 exp(x²/σ²) y
+// ∂²L/∂x²  = (2/σ² + 4x²/σ⁴) exp(x²/σ²) y²
+// ∂²L/∂y²  = 2 exp(x²/σ²)
+// ∂²L/∂x∂y = (4x/σ²) exp(x²/σ²) y
+
+function dsn5Loss(x, y, p) {
+  return Math.exp(x*x / (p.sigma*p.sigma)) * y*y;
+}
+
+function dsn5Gradient(x, y, p) {
+  const s2  = p.sigma * p.sigma;
+  const ex  = Math.exp(x*x / s2);
+  return [
+    (2*x / s2) * ex * y*y,
+    2 * ex * y
+  ];
+}
+
+function dsn5MaxEig(x, y, p) {
+  const s2  = p.sigma * p.sigma;
+  const ex  = Math.exp(x*x / s2);
+  const a   = (2/s2 + 4*x*x/(s2*s2)) * ex * y*y;  // ∂²L/∂x²
+  const d   = 2 * ex;                               // ∂²L/∂y²
+  const b   = (4*x / s2) * ex * y;                 // ∂²L/∂x∂y
+  const mid = (a + d) / 2, half = (a - d) / 2;
+  return mid + Math.sqrt(half*half + b*b);
+}
 
 function init() {
   initEigenvectorWidget();
@@ -691,6 +734,40 @@ function init() {
     charts: [
       { id: 'dsn4-loss-chart', label: 'loss',  color: 'rgb(40,130,130)', dataKey: 'lossHist' },
       { id: 'dsn4-eig-chart',  label: 'λ_max', color: 'rgb(220,50,50)', dataKey: 'eigHist',
+        refFn: (p) => 2/p.eta, refLabel: '2/η' }
+    ]
+  });
+  // ---- Function 5 ----
+  const p5 = { eta: 0.2, sigma: 1.0 };
+  new DeepScalarExperiment({
+    params:  p5,
+    viewport: { xMin: -2, xMax: 2, yMin: -2, yMax: 2 },
+    math: {
+      loss:          (x, y) => dsn5Loss(x, y, p5),
+      gradient:      (x, y) => dsn5Gradient(x, y, p5),
+      maxEigenvalue: (x, y) => dsn5MaxEig(x, y, p5)
+    },
+    sliders: [
+      { id: 'dsn5-eta-slider',   valueId: 'dsn5-eta-value',   param: 'eta',   decimals: 3 },
+      { id: 'dsn5-sigma-slider', valueId: 'dsn5-sigma-value', param: 'sigma', decimals: 2 }
+    ],
+    canvases: [
+      {
+        canvasId: 'dsn5-loss-bg', overlayId: 'dsn5-loss-ov', primary: true,
+        scalarField: (x, y) => dsn5Loss(x, y, p5),
+        logScale: false, whitePoint: 1,
+        startX: 0, startY: 1.5
+      },
+      {
+        canvasId: 'dsn5-sharp-bg', overlayId: 'dsn5-sharp-ov', primary: false,
+        scalarField: (x, y) => dsn5MaxEig(x, y, p5),
+        logScale: false, whitePoint: 1,
+        contourFn: (params) => 2 / params.eta
+      }
+    ],
+    charts: [
+      { id: 'dsn5-loss-chart', label: 'loss',  color: 'rgb(40,130,130)', dataKey: 'lossHist' },
+      { id: 'dsn5-eig-chart',  label: 'λ_max', color: 'rgb(220,50,50)', dataKey: 'eigHist',
         refFn: (p) => 2/p.eta, refLabel: '2/η' }
     ]
   });
