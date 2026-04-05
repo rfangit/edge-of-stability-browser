@@ -209,7 +209,7 @@
     <!-- ================================================================ -->
 
     <h2>Function 1 — $L(x,y) = (1 - xy)^2$</h2>
-    <p>Minimum manifold: hyperbola $xy=1$. Left: loss landscape. Right: sharpness $\lambda_{\max}$ landscape with the $2/\eta$ contour (black line). Both plots use a <strong>log scale</strong> colourmap.</p>
+    <p>Minimum manifold: hyperbola $xy=1$. Left: loss landscape (<strong>log scale</strong> colourmap). Right: sharpness $\lambda_{\max}$ landscape (<strong>linear scale</strong> colourmap, white at $2/\eta$) with the $2/\eta$ contour (black line).</p>
 
     <div class="dsn-experiment">
       <div class="dsn-controls">
@@ -285,7 +285,7 @@
     <!-- ================================================================ -->
 
     <h2>Function 2 — $L(x,y) = (1 - x^2 y^2)^2$</h2>
-    <p>Minimum manifold: $xy = \pm 1$ (four branches). Both plots use a <strong>log scale</strong> colourmap.</p>
+    <p>Minimum manifold: $xy = \pm 1$ (four branches). Loss plot uses a <strong>log scale</strong> colourmap. Sharpness plot uses a <strong>linear scale</strong> colourmap with white at $2/\eta$.</p>
 
     <div class="dsn-experiment">
       <div class="dsn-controls">
@@ -361,18 +361,18 @@
     <!-- ================================================================ -->
 
     <h2>Function 3 — $L(x,y) = (1 + \delta x^2)\, y^2$</h2>
-    <p>Minimum: $y = 0$ for all $x$. The curvature in $y$ grows with $|x|$ controlled by $\delta$. Both plots use a <strong>linear scale</strong> red-white-blue colourmap, autoscaled to the viewport range.</p>
+    <p>Minimum: $y = 0$ for all $x$. The curvature in $y$ grows with $|x|$ controlled by $\delta$. Loss plot uses a <strong>log scale</strong> colourmap. Sharpness plot uses a <strong>linear scale</strong> colourmap with white at $2/\eta$.</p>
 
     <div class="dsn-experiment">
       <div class="dsn-controls">
         <div class="dsn-slider-group">
           <label for="dsn3-eta-slider">$\eta$:</label>
-          <input type="range" id="dsn3-eta-slider" min="0.01" max="1.0" step="0.01" value="0.2" style="width:160px;">
+          <input type="range" id="dsn3-eta-slider" min="0.01" max="0.2" step="0.005" value="0.2" style="width:160px;">
           <span id="dsn3-eta-value" class="dsn-value-display">0.200</span>
         </div>
         <div class="dsn-slider-group">
           <label for="dsn3-delta-slider">$\delta$:</label>
-          <input type="range" id="dsn3-delta-slider" min="0.001" max="1.0" step="0.001" value="0.05" style="width:160px;">
+          <input type="range" id="dsn3-delta-slider" min="1" max="5" step="0.1" value="2" style="width:160px;">
           <span id="dsn3-delta-value" class="dsn-value-display">0.050</span>
         </div>
       </div>
@@ -442,7 +442,7 @@
     <!-- ================================================================ -->
 
     <h2>Function 4 — $L(x,y) = (1 + \delta x)\, y^2$</h2>
-    <p>Minimum: $y = 0$ for $x > -1/\delta$. The curvature in $y$ grows linearly with $x$, breaking left-right symmetry. Both plots use a <strong>linear scale</strong> red-white-blue colourmap, autoscaled to the viewport range.</p>
+    <p>Minimum: $y = 0$ for $x > -1/\delta$. The curvature in $y$ grows linearly with $x$, breaking left-right symmetry. Loss plot uses a <strong>linear scale</strong> colourmap. Sharpness plot uses a <strong>linear scale</strong> colourmap with white at $2/\eta$.</p>
 
     <div class="dsn-experiment">
       <div class="dsn-controls">
@@ -519,11 +519,11 @@
     </div>
 
     <!-- ================================================================ -->
-    <!-- Function 5 — L = exp(x²/σ²) y²                                  -->
+    <!-- Function 5 — L = (1 - (ax² + y²))²                             -->
     <!-- ================================================================ -->
 
-    <h2>Function 5 — $L(x,y) = e^{x^2/\sigma^2}\, y^2$</h2>
-    <p>Minimum: $y = 0$ for all $x$. The basin is <em>shallowest at the centre</em> ($x=0$) and steepens rapidly as $|x|$ grows — the opposite of a standard Gaussian bowl. $\sigma$ controls how quickly the steepening occurs. Both plots use a <strong>linear scale</strong> red-white-blue colourmap, autoscaled to the viewport range.</p>
+    <h2>Function 5 — $L(x,y) = (1 - (ax^2 + y^2))^2$</h2>
+    <p>Minimum manifold: ellipse $ax^2 + y^2 = 1$. When $a=1$ this is a circle; $a \neq 1$ stretches or compresses it along $x$. Loss plot uses a <strong>log scale</strong> colourmap. Sharpness plot uses a <strong>linear scale</strong> colourmap with white at $2/\eta$.</p>
 
     <div class="dsn-experiment">
       <div class="dsn-controls">
@@ -533,9 +533,9 @@
           <span id="dsn5-eta-value" class="dsn-value-display">0.200</span>
         </div>
         <div class="dsn-slider-group">
-          <label for="dsn5-sigma-slider">$\sigma$:</label>
-          <input type="range" id="dsn5-sigma-slider" min="0.1" max="3.0" step="0.05" value="1.0" style="width:160px;">
-          <span id="dsn5-sigma-value" class="dsn-value-display">1.00</span>
+          <label for="dsn5-a-slider">$a$:</label>
+          <input type="range" id="dsn5-a-slider" min="0.5" max="2.0" step="0.05" value="0.5" style="width:160px;">
+          <span id="dsn5-a-value" class="dsn-value-display">1.00</span>
         </div>
       </div>
 

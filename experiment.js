@@ -196,9 +196,12 @@ class LandscapeCanvas {
     // Otherwise fall back to the midpoint of the range.
     let vMid;
     if (this.cfg.whitePoint !== undefined) {
-      vMid = useLog
-        ? Math.log10(Math.max(this.cfg.whitePoint, 1e-10))
+      const wp = typeof this.cfg.whitePoint === 'function'
+        ? this.cfg.whitePoint(this.cfg.params)
         : this.cfg.whitePoint;
+      vMid = useLog
+        ? Math.log10(Math.max(wp, 1e-10))
+        : wp;
     } else {
       vMid = (vMin + vMax) / 2;
     }
@@ -571,41 +574,36 @@ function dsn4MaxEig(x, y, p) {
 }
 
 // ============================================================================
-// Function 5 — L(x, y) = exp(x²/σ²) y²
+// Function 5 — L(x, y) = (1 - (ax² + y²))²
 // ============================================================================
-// f(x) = exp(x²/σ²) — a Gaussian envelope inverted: widest basin at x=0,
-// sharpening toward the edges. Minimum is y=0 for all x, but the bowl is
-// shallowest at the centre and steepens rapidly as |x| grows.
+// Minimum manifold: ellipse ax² + y² = 1.
+// When a=1 this is a circle; a<1 stretches it along x, a>1 compresses it.
 //
-// σ controls the rate of growth — small σ means fast steepening.
-//
-// ∂L/∂x    = (2x/σ²) exp(x²/σ²) y²
-// ∂L/∂y    = 2 exp(x²/σ²) y
-// ∂²L/∂x²  = (2/σ² + 4x²/σ⁴) exp(x²/σ²) y²
-// ∂²L/∂y²  = 2 exp(x²/σ²)
-// ∂²L/∂x∂y = (4x/σ²) exp(x²/σ²) y
+// Let p = 1 - (ax² + y²):
+// ∂L/∂x    = -4ax·p
+// ∂L/∂y    = -4y·p
+// ∂²L/∂x²  = 4a(2ax² - p)
+// ∂²L/∂y²  = 4(2y² - p)
+// ∂²L/∂x∂y = 8axy
 
 function dsn5Loss(x, y, p) {
-  return Math.exp(x*x / (p.sigma*p.sigma)) * y*y;
+  const q = 1 - (p.a * x*x + y*y);
+  return q * q;
 }
 
 function dsn5Gradient(x, y, p) {
-  const s2  = p.sigma * p.sigma;
-  const ex  = Math.exp(x*x / s2);
-  return [
-    (2*x / s2) * ex * y*y,
-    2 * ex * y
-  ];
+  const q = 1 - (p.a * x*x + y*y);
+  return [-4 * p.a * x * q, -4 * y * q];
 }
 
 function dsn5MaxEig(x, y, p) {
-  const s2  = p.sigma * p.sigma;
-  const ex  = Math.exp(x*x / s2);
-  const a   = (2/s2 + 4*x*x/(s2*s2)) * ex * y*y;  // ∂²L/∂x²
-  const d   = 2 * ex;                               // ∂²L/∂y²
-  const b   = (4*x / s2) * ex * y;                 // ∂²L/∂x∂y
-  const mid = (a + d) / 2, half = (a - d) / 2;
-  return mid + Math.sqrt(half*half + b*b);
+  const q    = 1 - (p.a * x*x + y*y);
+  const a11  = 4 * p.a * (2 * p.a * x*x - q);
+  const a22  = 4 * (2 * y*y - q);
+  const a12  = 8 * p.a * x * y;
+  const mid  = (a11 + a22) / 2;
+  const half = (a11 - a22) / 2;
+  return mid + Math.sqrt(half*half + a12*a12);
 }
 
 function init() {
@@ -632,6 +630,8 @@ function init() {
       {
         canvasId: 'dsn1-sharp-bg', overlayId: 'dsn1-sharp-ov', primary: false,
         scalarField: (x, y) => dsn1MaxEig(x, y),
+        logScale: false,
+        whitePoint: (params) => 2 / params.eta,
         contourFn:   (params) => 2 / params.eta
       }
     ],
@@ -658,6 +658,8 @@ function init() {
       {
         canvasId: 'dsn2-sharp-bg', overlayId: 'dsn2-sharp-ov', primary: false,
         scalarField: (x, y) => dsn2MaxEig(x, y),
+        logScale: false,
+        whitePoint: (params) => 2 / params.eta,
         contourFn:   (params) => 2 / params.eta
       }
     ],
@@ -669,7 +671,7 @@ function init() {
   });
 
   // ---- DSN3 ----
-  const p3 = { eta: 0.2, delta: 0.05 };
+  const p3 = { eta: 0.2, delta: 2 };
   new DeepScalarExperiment({
     params:  p3,
     viewport: vp34,
@@ -680,19 +682,20 @@ function init() {
     },
     sliders: [
       { id: 'dsn3-eta-slider',   valueId: 'dsn3-eta-value',   param: 'eta',   decimals: 3 },
-      { id: 'dsn3-delta-slider', valueId: 'dsn3-delta-value', param: 'delta', decimals: 3 }
+      { id: 'dsn3-delta-slider', valueId: 'dsn3-delta-value', param: 'delta', decimals: 1 }
     ],
     canvases: [
       {
         canvasId: 'dsn3-loss-bg', overlayId: 'dsn3-loss-ov', primary: true,
         scalarField: (x, y) => dsn3Loss(x, y, p3),
-        logScale: false,
+        logScale: true, whitePoint: 0.1,
         startX: 0, startY: 2
       },
       {
         canvasId: 'dsn3-sharp-bg', overlayId: 'dsn3-sharp-ov', primary: false,
         scalarField: (x, y) => dsn3MaxEig(x, y, p3),
         logScale: false,
+        whitePoint: (params) => 2 / params.eta,
         contourFn: (params) => 2 / params.eta
       }
     ],
@@ -728,6 +731,7 @@ function init() {
         canvasId: 'dsn4-sharp-bg', overlayId: 'dsn4-sharp-ov', primary: false,
         scalarField: (x, y) => dsn4MaxEig(x, y, p4),
         logScale: false,
+        whitePoint: (params) => 2 / params.eta,
         contourFn: (params) => 2 / params.eta
       }
     ],
@@ -737,8 +741,9 @@ function init() {
         refFn: (p) => 2/p.eta, refLabel: '2/η' }
     ]
   });
+
   // ---- Function 5 ----
-  const p5 = { eta: 0.2, sigma: 1.0 };
+  const p5 = { eta: 0.2, a: 0.5 };
   new DeepScalarExperiment({
     params:  p5,
     viewport: { xMin: -2, xMax: 2, yMin: -2, yMax: 2 },
@@ -748,20 +753,21 @@ function init() {
       maxEigenvalue: (x, y) => dsn5MaxEig(x, y, p5)
     },
     sliders: [
-      { id: 'dsn5-eta-slider',   valueId: 'dsn5-eta-value',   param: 'eta',   decimals: 3 },
-      { id: 'dsn5-sigma-slider', valueId: 'dsn5-sigma-value', param: 'sigma', decimals: 2 }
+      { id: 'dsn5-eta-slider', valueId: 'dsn5-eta-value', param: 'eta', decimals: 3 },
+      { id: 'dsn5-a-slider',   valueId: 'dsn5-a-value',   param: 'a',   decimals: 2 }
     ],
     canvases: [
       {
         canvasId: 'dsn5-loss-bg', overlayId: 'dsn5-loss-ov', primary: true,
-        scalarField: (x, y) => dsn5Loss(x, y, p5),
-        logScale: false, whitePoint: 1,
-        startX: 0, startY: 1.5
+        scalarField: (x, y) => dsn5Loss(x, y, p5) + 1e-4,
+        whitePoint: 0.02,
+        startX: 0.5, startY: 0.5
       },
       {
         canvasId: 'dsn5-sharp-bg', overlayId: 'dsn5-sharp-ov', primary: false,
         scalarField: (x, y) => dsn5MaxEig(x, y, p5),
-        logScale: false, whitePoint: 1,
+        logScale: false,
+        whitePoint: (params) => 2 / params.eta,
         contourFn: (params) => 2 / params.eta
       }
     ],
