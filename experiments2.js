@@ -9,6 +9,13 @@ const AXIS_LABELS  = ['residual', 'sharp∇', 'top eig'];
 const AXIS_COLORS  = [[0.75,0.10,0.10], [0.05,0.55,0.15], [0.10,0.20,0.80]];
 const DRAG_SENS    = 0.004;
 
+// Reference planes — each drawn as a semi-transparent quad spanning the full data extent.
+// { axis: 'x'|'y'|'z', value: number|'mid', color: [r,g,b], alpha: 0-1 }
+// value: a world-space coordinate, or 'mid' to auto-place at the midpoint of the data range.
+const PLANES = [
+  { axis: 'y', value: 'mid', color: [0.05, 0.55, 0.15], alpha: 0.35 },  // sharpness midplane
+];
+
 // ---- Data ----
 function parseDataset(json) {
   const xs = json.displacements[MAP_X].cumulative;
@@ -100,6 +107,7 @@ async function init() {
   const zoomSlider  = document.getElementById('zoom-slider');
   const zoomVal     = document.getElementById('zoom-value');
   const showAxes    = document.getElementById('check-axes');
+  const showPlanes  = document.getElementById('check-planes');
   const loadStatus  = document.getElementById('load-status');
 
   // Canvas sizing
@@ -141,7 +149,7 @@ async function init() {
   const buf = {
     pos:  gl.createBuffer(), next: gl.createBuffer(),
     side: gl.createBuffer(), t:    gl.createBuffer(),
-    idx:  gl.createBuffer(), axis: gl.createBuffer(),
+    idx:  gl.createBuffer(), axis: gl.createBuffer(), plane: gl.createBuffer(),
   };
   let idxCount = 0;
 
@@ -203,6 +211,22 @@ async function init() {
       x0,0,0, 0,0,0,   0,y0,0, 0,0,0,   0,0,z0, 0,0,0,  // negative stubs
       0,0,0,x1,0,0,    0,0,0,0,y1,0,    0,0,0,0,0,z1,   // positive arms
     ]), gl.STATIC_DRAW);
+
+    // Build one quad per plane, spanning the data extent on the two non-normal axes
+    const mid = { x: (x0+x1)/2, y: (y0+y1)/2, z: (z0+z1)/2 };
+    const planeVerts = [];
+    for (const pl of PLANES) {
+      const v = pl.value === 'mid' ? mid[pl.axis] : pl.value;
+      if (pl.axis === 'y') {
+        planeVerts.push(x0,v,z0, x1,v,z0, x1,v,z1, x0,v,z0, x1,v,z1, x0,v,z1);
+      } else if (pl.axis === 'x') {
+        planeVerts.push(v,y0,z0, v,y1,z0, v,y1,z1, v,y0,z0, v,y1,z1, v,y0,z1);
+      } else {
+        planeVerts.push(x0,y0,v, x1,y0,v, x1,y1,v, x0,y0,v, x1,y1,v, x0,y1,v);
+      }
+    }
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf.plane);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(planeVerts), gl.STATIC_DRAW);
   }
 
   // ---- Build curve GPU buffers ----
@@ -298,6 +322,24 @@ async function init() {
       gl.enableVertexAttribArray(fLoc.aPos); gl.vertexAttribPointer(fLoc.aPos,3,gl.FLOAT,false,0,0);
       for(let i=0;i<3;i++){gl.uniform3fv(fLoc.uColor,AXIS_COLORS[i]);gl.uniform1f(fLoc.uAlpha,0.3);gl.drawArrays(gl.LINES,i*2,2);}
       for(let i=0;i<3;i++){gl.uniform3fv(fLoc.uColor,AXIS_COLORS[i]);gl.uniform1f(fLoc.uAlpha,1.0);gl.drawArrays(gl.LINES,6+i*2,2);}
+    }
+
+    // Planes (drawn before curve so curve renders on top)
+    if (PLANES.length > 0 && showPlanes && showPlanes.checked) {
+      gl.useProgram(progFlat); gl.uniformMatrix4fv(fLoc.uMVP,false,mvp);
+      gl.bindBuffer(gl.ARRAY_BUFFER, buf.plane);
+      gl.enableVertexAttribArray(fLoc.aPos); gl.vertexAttribPointer(fLoc.aPos,3,gl.FLOAT,false,0,0);
+      gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+      gl.depthMask(false);  // don't write to depth so curve always shows through
+      let vOffset = 0;
+      for (const pl of PLANES) {
+        gl.uniform3fv(fLoc.uColor, pl.color);
+        gl.uniform1f(fLoc.uAlpha, pl.alpha);
+        gl.drawArrays(gl.TRIANGLES, vOffset, 6);
+        vOffset += 6;
+      }
+      gl.depthMask(true);
+      gl.disable(gl.BLEND);
     }
 
     // Curve
