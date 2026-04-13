@@ -411,8 +411,10 @@ function dsn5MaxEig(x, y, p) {
 // ============================================================================
 
 function initDSN5() {
-  const p5 = { eta: 0.3, a: 0.5 };
-  new DeepScalarExperiment({
+  const DEFAULTS = { eta: 0.3, a: 0.5, startX: 0.2, startY: 0.2 };
+  const p5 = { eta: DEFAULTS.eta, a: DEFAULTS.a };
+
+  const experiment = new DeepScalarExperiment({
     params:   p5,
     viewport: { xMin: -2, xMax: 2, yMin: -2, yMax: 2 },
     math: {
@@ -429,10 +431,10 @@ function initDSN5() {
         canvasId:    'dsn5-loss-bg',
         overlayId:   'dsn5-loss-ov',
         primary:     true,
-        scalarField: (x, y) => dsn5Loss(x, y, p5) + 1e-4,  // +1e-4 avoids log10(0)
+        scalarField: (x, y) => dsn5Loss(x, y, p5) + 1e-4,
         whitePoint:  0.02,
-        startX:      0.2,
-        startY:      0.2
+        startX:      DEFAULTS.startX,
+        startY:      DEFAULTS.startY
       },
       {
         canvasId:    'dsn5-sharp-bg',
@@ -441,10 +443,9 @@ function initDSN5() {
         scalarField: (x, y) => dsn5MaxEig(x, y, p5),
         logScale:    false,
         whitePoint:  (params) => 2 / params.eta,
-        contourFn:   (params) => 2 / params.eta,  // solid black isoline at 2/η
+        contourFn:   (params) => 2 / params.eta,
         dashedContours: [
           {
-            // Minima ellipse: ax² + y² = 1
             fn:        () => 1,
             field:     (x, y, params) => params.a * x*x + y*y,
             color:     'rgba(0, 0, 139, 0.85)',
@@ -471,6 +472,37 @@ function initDSN5() {
       }
     ]
   });
+
+  // Reset button — restore all params, sliders, and start point to defaults
+  const resetBtn = document.getElementById('dsn5-reset-btn');
+  if (resetBtn) {
+    resetBtn.addEventListener('click', () => {
+      // Restore params
+      p5.eta = DEFAULTS.eta;
+      p5.a   = DEFAULTS.a;
+
+      // Sync slider positions and value displays
+      const etaSlider = document.getElementById('dsn5-eta-slider');
+      const etaValue  = document.getElementById('dsn5-eta-value');
+      const aSlider   = document.getElementById('dsn5-a-slider');
+      const aValue    = document.getElementById('dsn5-a-value');
+      if (etaSlider) etaSlider.value       = DEFAULTS.eta;
+      if (etaValue)  etaValue.textContent  = DEFAULTS.eta.toFixed(3);
+      if (aSlider)   aSlider.value         = DEFAULTS.a;
+      if (aValue)    aValue.textContent    = DEFAULTS.a.toFixed(2);
+
+      // Restore start point on the primary canvas
+      const primary = experiment.canvases.find(c => c.cc.primary);
+      if (primary) {
+        primary.lc.startX = DEFAULTS.startX;
+        primary.lc.startY = DEFAULTS.startY;
+      }
+
+      // Redraw everything
+      experiment._refreshAllCanvases();
+      experiment._runAndDraw();
+    });
+  }
 }
 
 // Wait for MathJax before initialising (same pattern as app.js and the existing

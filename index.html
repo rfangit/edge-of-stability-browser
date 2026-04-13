@@ -544,20 +544,23 @@
     <p>The entire process can be visualized directly for a 2-variable model, shown below for $L = (1 - a x^2 - y^2)^2$ below. You can adjust the learning rate and $a$ freely to observe edge of stability behaviour.</p>
 
     <div class="dsn-experiment">
-      <div class="dsn-controls">
+
+      <!-- Sliders + reset: centered above the widget box -->
+      <div style="display:flex; justify-content:center; align-items:center; gap:24px; margin-bottom:12px; font-size:14px;">
         <div class="dsn-slider-group">
           <label for="dsn5-eta-slider">$\eta$:</label>
           <input type="range" id="dsn5-eta-slider" min="0.01" max="1.0" step="0.01" value="0.3" style="width:160px;">
-          <span id="dsn5-eta-value" class="dsn-value-display">0.200</span>
+          <span id="dsn5-eta-value" class="dsn-value-display">0.300</span>
         </div>
         <div class="dsn-slider-group">
           <label for="dsn5-a-slider">$a$:</label>
           <input type="range" id="dsn5-a-slider" min="0.5" max="2.0" step="0.05" value="0.5" style="width:160px;">
           <span id="dsn5-a-value" class="dsn-value-display">0.50</span>
         </div>
+        <button id="dsn5-reset-btn" class="sim-button" style="font-size:12px; padding:3px 10px;">reset</button>
       </div>
 
-      <!-- Three-section layout: [loss 2D] | [sharpness 2D] | [loss + λ_max charts stacked] -->
+      <!-- Three-section layout: [loss 2D] | [sharpness 2D] | [charts stacked] -->
       <div style="display:flex; justify-content:center;">
       <div style="display:inline-flex; gap:0; padding:24px 28px 28px 28px; border:1px solid #ccc; border-radius:6px; background:white; align-items:flex-start;">
 
@@ -610,7 +613,6 @@
         <div style="width:1px; background:#ddd; align-self:stretch; margin:0 12px 0 8px; flex-shrink:0;"></div>
 
         <!-- 3. Loss + λ_max line charts stacked -->
-        <!-- height = title(21) + gap(6) + canvas(290) + margin-bottom(30) = 347px -->
         <div style="display:flex; flex-direction:column; gap:8px; width:220px; height:347px; flex-shrink:0;">
 
           <!-- Loss line chart -->
