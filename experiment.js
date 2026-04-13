@@ -262,6 +262,64 @@ class LandscapeCanvas {
       }
     }
 
+    // Dashed contours: array of { fn(params)=>null|number, field(x,y,params)=>number,
+    //                              color, dash, lineWidth }
+    // Each is drawn as a smooth path by marching along sign-change pixels.
+    if (this.cfg.dashedContours) {
+      const { xMin, xMax, yMin, yMax } = this.cfg.viewport;
+      const W = canvas.width, H = canvas.height;
+
+      for (const dc of this.cfg.dashedContours) {
+        const val = dc.fn ? dc.fn(this.cfg.params) : null;
+        if (val === null || !isFinite(val)) continue;
+
+        // Sample the field and draw a smooth parametric path by
+        // evaluating the implicit curve f(x,y) = val with canvas lineTo.
+        // We use a simple marching-squares-style row scan: for each row,
+        // find x positions where field crosses val, then connect them.
+        ctx.save();
+        ctx.strokeStyle = dc.color || 'navy';
+        ctx.lineWidth   = dc.lineWidth || 1.5;
+        ctx.setLineDash(dc.dash || [6, 4]);
+
+        // Build field grid at canvas resolution
+        const field = new Float32Array(W * H);
+        for (let py = 0; py < H; py++) {
+          for (let px = 0; px < W; px++) {
+            const wx = xMin + (px / (W - 1)) * (xMax - xMin);
+            const wy = yMax - (py / (H - 1)) * (yMax - yMin);
+            field[py * W + px] = dc.field(wx, wy, this.cfg.params) - val;
+          }
+        }
+
+        // Collect edge crossings and draw short line segments
+        ctx.beginPath();
+        for (let py = 0; py < H - 1; py++) {
+          for (let px = 0; px < W - 1; px++) {
+            const v  = field[py * W + px];
+            const vr = field[py * W + px + 1];
+            const vd = field[(py + 1) * W + px];
+            if (v * vr < 0) {
+              const t  = v / (v - vr);
+              const cx = px + t;
+              const cy = py;
+              ctx.moveTo(cx, cy);
+              ctx.lineTo(cx, cy + 1);
+            }
+            if (v * vd < 0) {
+              const t  = v / (v - vd);
+              const cx = px;
+              const cy = py + t;
+              ctx.moveTo(cx, cy);
+              ctx.lineTo(cx + 1, cy);
+            }
+          }
+        }
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+
     // Trajectory
     if (this.trajectory && this.trajectory.length > 1) {
       ctx.beginPath();
@@ -768,7 +826,17 @@ function init() {
         scalarField: (x, y) => dsn5MaxEig(x, y, p5),
         logScale: false,
         whitePoint: (params) => 2 / params.eta,
-        contourFn: (params) => 2 / params.eta
+        contourFn:  (params) => 2 / params.eta,
+        dashedContours: [
+          {
+            // Minima ellipse: ax² + y² = 1
+            fn:        () => 1,
+            field:     (x, y, params) => params.a * x*x + y*y,
+            color:     'rgba(0, 0, 139, 0.85)',
+            dash:      [7, 5],
+            lineWidth: 1.8
+          }
+        ]
       }
     ],
     charts: [

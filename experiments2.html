@@ -5,150 +5,229 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Experiments 2</title>
   <link rel="stylesheet" href="styles.css">
-
   <style>
     .viewer-wrap {
       width: 100%;
-      max-width: 700px;
+      max-width: 1100px;
       margin: 0 auto;
       display: flex;
       flex-direction: column;
       gap: 10px;
     }
+
+    /* Custom epoch slider: region bar flush above the track */
     .epoch-row {
       display: flex;
       align-items: center;
       gap: 10px;
       font-size: 14px;
     }
-    .epoch-row label { font-weight: 600; min-width: 60px; }
-    .epoch-row input[type=range] { flex: 1; }
-    .epoch-row .val {
-      font-family: Monaco, Consolas, monospace;
-      font-size: 13px;
-      min-width: 40px;
-      text-align: right;
-    }
-    #curve3d-canvas {
-      display: block;
-      width: 100%;
-      height: 460px;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-      cursor: grab;
-    }
-    #curve3d-canvas:active { cursor: grabbing; }
-    .controls-row {
+    .epoch-row label { font-weight:600; min-width:60px; }
+    .epoch-row .val { font-family:Monaco,Consolas,monospace; font-size:13px; min-width:40px; text-align:right; }
+
+    .epoch-slider-wrap {
+      flex: 1;
       display: flex;
-      gap: 20px;
-      flex-wrap: wrap;
-      align-items: flex-start;
-      font-size: 13px;
+      flex-direction: column;
+      gap: 2px;
+      user-select: none;
     }
-    .slider-group {
+
+    /* Region bar — same width as the track below */
+    #region-bar {
+      height: 8px;
+      border-radius: 3px;
+      overflow: hidden;
       display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .slider-group label { min-width: 30px; color: #555; }
-    .slider-group input[type=range] { width: 140px; }
-    .slider-group .val {
-      font-family: Monaco, Consolas, monospace;
-      font-size: 12px;
-      min-width: 40px;
-      color: #444;
-    }
-    .check-row {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      color: #444;
+      border: 1px solid #ddd;
       cursor: pointer;
     }
-    .viewer-hint { font-size: 12px; color: #aaa; }
+    .region-segment { height:100%; transition: opacity 0.15s; }
+    .region-segment.inactive { opacity: 0.3; }
 
-    details.orient-details { align-self: flex-start; }
-    details.orient-details summary {
-      font-size: 12px; font-weight: 600; color: #888;
-      text-transform: uppercase; letter-spacing: 0.4px;
-      cursor: pointer; list-style: none;
-      display: flex; align-items: center; gap: 5px;
+    /* Track + thumb */
+    .epoch-track-wrap {
+      position: relative;
+      height: 18px;
+      display: flex;
+      align-items: center;
+      cursor: pointer;
     }
-    details.orient-details summary::-webkit-details-marker { display: none; }
-    details.orient-details summary::before {
-      content: '▶'; font-size: 9px; color: #aaa;
-      transition: transform 0.15s; display: inline-block;
+    .epoch-track {
+      position: absolute;
+      left: 0; right: 0;
+      height: 4px;
+      background: #ddd;
+      border-radius: 2px;
     }
-    details.orient-details[open] summary::before { transform: rotate(90deg); }
-    details.orient-details .orient-body {
-      display: flex; flex-direction: column; gap: 6px;
-      margin-top: 6px; padding-left: 2px;
+    .epoch-track-fill {
+      height: 100%;
+      background: #999;
+      border-radius: 2px;
     }
+    .epoch-thumb {
+      position: absolute;
+      width: 14px; height: 14px;
+      background: #fff;
+      border: 2px solid #666;
+      border-radius: 50%;
+      transform: translateX(-50%);
+      top: 50%; margin-top: -7px;
+      cursor: grab;
+      transition: border-color 0.1s;
+    }
+    .epoch-thumb:active { cursor: grabbing; border-color: #333; }
+
+    /* Main panel: 2D stack on left, 3D on right */
+    .panels {
+      display: flex;
+      gap: 12px;
+      align-items: stretch;
+    }
+
+    /* Left: two 2D canvases stacked */
+    .panel-2d {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      flex: 1;
+      min-width: 0;
+    }
+    .plot2d-wrap {
+      position: relative;
+      flex: 1;
+    }
+    .plot2d-wrap canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      background: #fff;
+    }
+    .plot2d-label {
+      position: absolute;
+      top: 6px; left: 8px;
+      font-size: 11px;
+      color: #888;
+      pointer-events: none;
+    }
+
+    /* Right: 3D canvas */
+    .panel-3d {
+      flex: 1.4;
+      min-width: 0;
+      position: relative;  /* anchor for the overlay controls */
+    }
+    #canvas-3d {
+      display: block;
+      width: 100%;
+      height: 100%;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      background: #fff;
+      cursor: grab;
+    }
+    #canvas-3d:active { cursor: grabbing; }
+
+    /* Controls overlay — bottom-left of 3D panel */
+    .controls-overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      align-items: flex-start;
+      padding: 12px 14px;
+      gap: 8px;
+      pointer-events: none;
+    }
+    /* Re-enable pointer events on actual interactive elements */
+    .controls-overlay > * { pointer-events: all; }
+    .controls-overlay .slider-group { display:flex; align-items:center; gap:8px; }
+    .controls-overlay .slider-group label { color:#444; white-space:nowrap; font-size:12px; }
+    .controls-overlay .slider-group input[type=range] { width:120px; }
+    .controls-overlay .slider-group .val { font-family:Monaco,Consolas,monospace; font-size:11px; min-width:32px; color:#444; }
+    .controls-overlay .check-row { display:flex; align-items:center; gap:5px; color:#444; cursor:pointer; font-size:12px; }
+    .controls-overlay button { font-size:12px; padding:2px 8px; cursor:pointer; }
   </style>
 </head>
 <body>
-
 <div class="container">
   <h1 class="page-title">Experiments 2</h1>
   <p class="section-label">SANDBOX — not part of the main tutorial</p>
-
   <div class="tutorial-content">
-    <p>Weight-space trajectory viewer. Axes: residual direction (x), sharpness gradient (y), top eigenvector (z).</p>
-
-    <h2>3D Curve Viewer</h2>
+    <p>Weight-space trajectory. Left: residual vs eigenvector (top), residual vs sharpness (bottom). Right: 3D view.</p>
 
     <div class="viewer-wrap">
 
+      <!-- Custom epoch slider: region bar flush above track -->
       <div class="epoch-row">
-        <label for="epoch-slider">Epoch</label>
-        <input type="range" id="epoch-slider" min="1" max="500" step="1" value="500">
-        <span class="val" id="epoch-value">500</span>
+        <label>Epoch</label>
+        <div class="epoch-slider-wrap" id="epoch-slider-wrap">
+          <div id="region-bar"></div>
+          <div class="epoch-track-wrap" id="epoch-track-wrap">
+            <div class="epoch-track">
+              <div class="epoch-track-fill" id="epoch-track-fill"></div>
+            </div>
+            <div class="epoch-thumb" id="epoch-thumb"></div>
+          </div>
+        </div>
+        <span class="val" id="epoch-value">—</span>
       </div>
 
       <div id="load-status" style="font-size:13px;color:#888;min-height:1.4em;">Loading data…</div>
 
-      <canvas id="curve3d-canvas"></canvas>
+      <!-- Panels -->
+      <div class="panels" style="height:520px;">
 
-      <div class="controls-row">
+        <!-- Left: 2D plots -->
+        <div class="panel-2d">
+          <div class="plot2d-wrap">
+            <canvas id="canvas-xy"></canvas>
+            <span class="plot2d-label">residual (x) · sharpness λ₁ (y)</span>
+          </div>
+          <div class="plot2d-wrap">
+            <canvas id="canvas-xz"></canvas>
+            <span class="plot2d-label">residual (x) · eigenvector (y)</span>
+          </div>
+        </div>
 
-        <details class="orient-details">
-          <summary>Orientation</summary>
-          <div class="orient-body">
+        <!-- Right: 3D -->
+        <div class="panel-3d">
+          <canvas id="canvas-3d"></canvas>
+          <div class="controls-overlay">
             <div class="slider-group">
-              <label>Rot X</label>
-              <input type="range" id="rotx-slider" min="-180" max="180" step="1" value="-10">
+              <label>Tilt</label>
+              <input type="range" id="rotx-slider" min="-90" max="0" step="1" value="-10">
               <span class="val" id="rotx-value">-10°</span>
             </div>
             <div class="slider-group">
-              <label>Rot Y</label>
-              <input type="range" id="roty-slider" min="-180" max="180" step="1" value="0">
-              <span class="val" id="roty-value">0°</span>
-            </div>
-            <div class="slider-group">
               <label>Zoom</label>
-              <input type="range" id="zoom-slider" min="5" max="500" step="1" value="35">
-              <span class="val" id="zoom-value">3.5</span>
+              <input type="range" id="zoom-slider" min="0" max="1000" step="1" value="600">
+              <span class="val" id="zoom-value">1.5</span>
             </div>
+            <button id="fix-btn">Fix view</button>
           </div>
-        </details>
+        </div>
 
-        <label class="check-row">
-          <input type="checkbox" id="check-axes" checked>
-          Show axes
-        </label>
-        <label class="check-row">
-          <input type="checkbox" id="check-planes" checked>
-          Show planes
-        </label>
+      </div><!-- .panels -->
 
+      <div id="region-text" style="
+        padding: 10px 14px;
+        border-left: 4px solid #ddd;
+        border-radius: 3px;
+        background: #fafafa;
+        font-size: 14px;
+        line-height: 1.6;
+      ">
+        <span class="region-text-label" style="font-weight:600; font-size:11px; letter-spacing:0.5px; display:block; margin-bottom:4px; color:#999;">—</span>
+        <span class="region-text-body" style="color:#444;">Scrub the epoch slider to see region descriptions.</span>
       </div>
-
-      <div class="viewer-hint">Drag to rotate · Shift+drag to pan · scroll to zoom</div>
 
     </div>
   </div>
 </div>
-
 <script type="module" src="experiments2.js"></script>
 </body>
 </html>

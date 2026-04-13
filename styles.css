@@ -538,3 +538,166 @@ sup a:hover {
 .references a, .footnotes a {
   color: #4466aa;
 }
+
+/* ==============================
+   Weight-space Trajectory Viewer
+   ============================== */
+
+.viewer-wrap {
+  width: 100%;
+  max-width: 1100px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Epoch slider row */
+.epoch-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+}
+.epoch-row label { font-weight: 600; min-width: 60px; }
+.epoch-row .val {
+  font-family: Monaco, Consolas, monospace;
+  font-size: 13px;
+  min-width: 40px;
+  text-align: right;
+}
+
+.epoch-slider-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  user-select: none;
+}
+
+/* Region bar — coloured strip above the scrub track */
+#region-bar {
+  height: 8px;
+  border-radius: 3px;
+  overflow: hidden;
+  display: flex;
+  border: 1px solid #ddd;
+  cursor: pointer;
+}
+.region-segment { height: 100%; transition: opacity 0.15s; }
+.region-segment.inactive { opacity: 0.3; }
+
+/* Scrub track + thumb */
+.epoch-track-wrap {
+  position: relative;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+.epoch-track {
+  position: absolute;
+  left: 0; right: 0;
+  height: 4px;
+  background: #ddd;
+  border-radius: 2px;
+}
+.epoch-track-fill {
+  height: 100%;
+  background: #999;
+  border-radius: 2px;
+}
+.epoch-thumb {
+  position: absolute;
+  width: 14px; height: 14px;
+  background: #fff;
+  border: 2px solid #666;
+  border-radius: 50%;
+  transform: translateX(-50%);
+  top: 50%; margin-top: -7px;
+  cursor: grab;
+  transition: border-color 0.1s;
+}
+.epoch-thumb:active { cursor: grabbing; border-color: #333; }
+
+/* Main panel layout: 2D stack on left, 3D on right */
+.panels {
+  display: flex;
+  gap: 12px;
+  align-items: stretch;
+}
+
+.panel-2d {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.plot2d-wrap {
+  position: relative;
+  flex: 1;
+}
+.plot2d-wrap canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: #fff;
+}
+.plot2d-label {
+  position: absolute;
+  top: 6px; left: 8px;
+  font-size: 11px;
+  color: #888;
+  pointer-events: none;
+}
+
+.panel-3d {
+  flex: 1.4;
+  min-width: 0;
+  position: relative;
+}
+#canvas-3d {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: #fff;
+  cursor: grab;
+}
+#canvas-3d:active { cursor: grabbing; }
+
+/* Controls overlay — bottom-left of 3D panel */
+.controls-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 12px 14px;
+  pointer-events: none;
+}
+.controls-overlay > * { pointer-events: all; }
+.panel-3d-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #444;
+  letter-spacing: 0.3px;
+  pointer-events: none;
+}
+.controls-overlay-bottom { display: flex; flex-direction: column; gap: 8px; }
+.controls-overlay .slider-group { display: flex; align-items: center; gap: 8px; }
+.controls-overlay .slider-group label { color: #444; white-space: nowrap; font-size: 12px; }
+.controls-overlay .slider-group input[type=range] { width: 120px; }
+.controls-overlay .slider-group .val {
+  font-family: Monaco, Consolas, monospace;
+  font-size: 11px;
+  min-width: 32px;
+  color: #444;
+}
+.controls-overlay button { font-size: 12px; padding: 2px 8px; cursor: pointer; }

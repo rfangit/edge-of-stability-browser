@@ -93,20 +93,20 @@
     /* Axis labels */
     .dsn-x-label {
       position: absolute;
-      bottom: -28px;
+      bottom: -30px;
       left: 50%;
       transform: translateX(-50%);
-      font-size: 14px;
+      font-size: 16px;
       color: #666;
     }
 
     .dsn-y-label {
       position: absolute;
-      left: -46px;
+      left: -50px;
       top: 50%;
       transform: rotate(-90deg) translateX(50%);
       transform-origin: center center;
-      font-size: 14px;
+      font-size: 16px;
       color: #666;
       white-space: nowrap;
     }
@@ -114,18 +114,18 @@
     /* Axis ticks */
     .dsn-tick {
       position: absolute;
-      font-size: 10px;
+      font-size: 13px;
       color: #555;
       font-family: Monaco, Consolas, monospace;
     }
 
     .dsn-tick-x {
-      bottom: -16px;
+      bottom: -18px;
       transform: translateX(-50%);
     }
 
     .dsn-tick-y {
-      left: -20px;
+      left: -26px;
       transform: translateY(-50%);
       text-align: right;
     }
@@ -539,64 +539,80 @@
         </div>
       </div>
 
-      <div class="dsn-canvas-row">
-        <div class="dsn-landscape-wrap">
-          <div class="dsn-canvas-label">loss</div>
-          <canvas id="dsn5-loss-bg" class="dsn-bg" width="340" height="340"></canvas>
-          <canvas id="dsn5-loss-ov" class="dsn-ov" width="340" height="340"></canvas>
-          <div class="dsn-x-label">$x$</div>
-          <div class="dsn-y-label">$y$</div>
-          <div class="dsn-tick dsn-tick-x" style="left:0%">-2</div>
-          <div class="dsn-tick dsn-tick-x" style="left:25%">-1</div>
-          <div class="dsn-tick dsn-tick-x" style="left:50%">0</div>
-          <div class="dsn-tick dsn-tick-x" style="left:75%">1</div>
-          <div class="dsn-tick dsn-tick-x" style="left:100%">2</div>
-          <div class="dsn-tick dsn-tick-y" style="top:0%">2</div>
-          <div class="dsn-tick dsn-tick-y" style="top:25%">1</div>
-          <div class="dsn-tick dsn-tick-y" style="top:50%">0</div>
-          <div class="dsn-tick dsn-tick-y" style="top:75%">-1</div>
-          <div class="dsn-tick dsn-tick-y" style="top:100%">-2</div>
-        </div>
+      <!-- Three-section layout: [loss 2D] [sharpness 2D] [loss+λ_max charts stacked] -->
+      <div style="display:flex; justify-content:center;">
+      <div style="display:inline-flex; gap:0; padding:24px 28px 28px 28px; border:1px solid #ccc; border-radius:6px; background:white; align-items:flex-start;">
 
-        <div class="dsn-landscape-wrap">
-          <div class="dsn-canvas-label">sharpness $\lambda_{\max}$</div>
-          <canvas id="dsn5-sharp-bg" class="dsn-bg" width="340" height="340"></canvas>
-          <canvas id="dsn5-sharp-ov" class="dsn-ov" width="340" height="340"></canvas>
-          <div class="dsn-x-label">$x$</div>
-          <div class="dsn-y-label">$y$</div>
-          <div class="dsn-tick dsn-tick-x" style="left:0%">-2</div>
-          <div class="dsn-tick dsn-tick-x" style="left:25%">-1</div>
-          <div class="dsn-tick dsn-tick-x" style="left:50%">0</div>
-          <div class="dsn-tick dsn-tick-x" style="left:75%">1</div>
-          <div class="dsn-tick dsn-tick-x" style="left:100%">2</div>
-          <div class="dsn-tick dsn-tick-y" style="top:0%">2</div>
-          <div class="dsn-tick dsn-tick-y" style="top:25%">1</div>
-          <div class="dsn-tick dsn-tick-y" style="top:50%">0</div>
-          <div class="dsn-tick dsn-tick-y" style="top:75%">-1</div>
-          <div class="dsn-tick dsn-tick-y" style="top:100%">-2</div>
-        </div>
-      </div>
-
-      <div class="dsn-chart-row">
-        <div class="dsn-chart-wrap">
-          <div class="plot-box" style="height:100%; padding:12px 12px 28px 44px;">
-            <div class="plot-content">
-              <canvas id="dsn5-loss-chart" class="plot-canvas"></canvas>
-              <div class="y-axis-label y-axis-label-loss" style="font-size:12px;">loss</div>
-              <div class="x-axis-label" style="font-size:12px;">step</div>
-            </div>
+        <!-- 1. Loss 2D -->
+        <div style="display:flex; flex-direction:column; align-items:flex-start; gap:6px; flex-shrink:0;">
+          <div style="font-size:17px; color:#333; width:334px; text-align:center;">Loss</div>
+          <div class="dsn-landscape-wrap" style="width:290px; height:290px; border:none; border-radius:0; background:transparent;">
+            <canvas id="dsn5-loss-bg" class="dsn-bg" width="290" height="290"></canvas>
+            <canvas id="dsn5-loss-ov" class="dsn-ov" width="290" height="290"></canvas>
+            <div class="dsn-x-label">$x$</div>
+            <div class="dsn-y-label">$y$</div>
+            <div class="dsn-tick dsn-tick-x" style="left:0%">-2</div>
+            <div class="dsn-tick dsn-tick-x" style="left:25%">-1</div>
+            <div class="dsn-tick dsn-tick-x" style="left:50%">0</div>
+            <div class="dsn-tick dsn-tick-x" style="left:75%">1</div>
+            <div class="dsn-tick dsn-tick-x" style="left:100%">2</div>
+            <div class="dsn-tick dsn-tick-y" style="top:0%">2</div>
+            <div class="dsn-tick dsn-tick-y" style="top:25%">1</div>
+            <div class="dsn-tick dsn-tick-y" style="top:50%">0</div>
+            <div class="dsn-tick dsn-tick-y" style="top:75%">-1</div>
+            <div class="dsn-tick dsn-tick-y" style="top:100%">-2</div>
           </div>
         </div>
-        <div class="dsn-chart-wrap">
-          <div class="plot-box" style="height:100%; padding:12px 12px 28px 44px;">
-            <div class="plot-content">
-              <canvas id="dsn5-eig-chart" class="plot-canvas"></canvas>
-              <div class="y-axis-label y-axis-label-norms" style="font-size:12px;">$\lambda_{\max}$</div>
-              <div class="x-axis-label" style="font-size:12px;">step</div>
-            </div>
+
+        <!-- Divider -->
+        <div style="width:1px; background:#ddd; align-self:stretch; margin:0 20px; flex-shrink:0;"></div>
+
+        <!-- 2. Sharpness 2D -->
+        <div style="display:flex; flex-direction:column; align-items:flex-start; gap:6px; flex-shrink:0;">
+          <div style="font-size:17px; color:#333; width:334px; text-align:center;">Sharpness $\lambda_{\max}$</div>
+          <div class="dsn-landscape-wrap" style="width:290px; height:290px; border:none; border-radius:0; background:transparent;">
+            <canvas id="dsn5-sharp-bg" class="dsn-bg" width="290" height="290"></canvas>
+            <canvas id="dsn5-sharp-ov" class="dsn-ov" width="290" height="290"></canvas>
+            <div class="dsn-x-label">$x$</div>
+            <div class="dsn-y-label">$y$</div>
+            <div class="dsn-tick dsn-tick-x" style="left:0%">-2</div>
+            <div class="dsn-tick dsn-tick-x" style="left:25%">-1</div>
+            <div class="dsn-tick dsn-tick-x" style="left:50%">0</div>
+            <div class="dsn-tick dsn-tick-x" style="left:75%">1</div>
+            <div class="dsn-tick dsn-tick-x" style="left:100%">2</div>
+            <div class="dsn-tick dsn-tick-y" style="top:0%">2</div>
+            <div class="dsn-tick dsn-tick-y" style="top:25%">1</div>
+            <div class="dsn-tick dsn-tick-y" style="top:50%">0</div>
+            <div class="dsn-tick dsn-tick-y" style="top:75%">-1</div>
+            <div class="dsn-tick dsn-tick-y" style="top:100%">-2</div>
           </div>
         </div>
-      </div>
+
+        <!-- Divider — tighter before right panel -->
+        <div style="width:1px; background:#ddd; align-self:stretch; margin:0 12px 0 8px; flex-shrink:0;"></div>
+
+        <!-- 3. Loss + λ_max line charts stacked, no titles, full height -->
+        <!-- height = title(21) + gap(6) + canvas(290) + margin-bottom(30) = 347px -->
+        <div style="display:flex; flex-direction:column; gap:8px; width:220px; height:347px; flex-shrink:0;">
+
+          <!-- Loss line chart -->
+          <div style="position:relative; flex:1; min-height:0; margin-left:36px; margin-bottom:6px; margin-right:0px;">
+            <canvas id="dsn5-loss-chart" style="position:absolute; top:0; left:0; width:100%; height:100%;"></canvas>
+            <div style="position:absolute; left:-32px; top:50%; transform:rotate(-90deg) translateX(50%); transform-origin:center center; font-size:12px; color:#666; white-space:nowrap;">loss</div>
+            <div style="position:absolute; bottom:-16px; left:50%; transform:translateX(-50%); font-size:12px; color:#666;">step</div>
+          </div>
+
+          <!-- λ_max line chart -->
+          <div style="position:relative; flex:1; min-height:0; margin-left:36px; margin-bottom:6px; margin-right:0px;">
+            <canvas id="dsn5-eig-chart" style="position:absolute; top:0; left:0; width:100%; height:100%;"></canvas>
+            <div style="position:absolute; left:-32px; top:50%; transform:rotate(-90deg) translateX(50%); transform-origin:center center; font-size:12px; color:#666; white-space:nowrap;">$\lambda_{\max}$</div>
+            <div style="position:absolute; bottom:-16px; left:50%; transform:translateX(-50%); font-size:12px; color:#666;">step</div>
+          </div>
+
+        </div><!-- end right charts -->
+
+      </div><!-- end outer border -->
+      </div><!-- end centering wrapper -->
     </div>
 
   </div><!-- .tutorial-content -->

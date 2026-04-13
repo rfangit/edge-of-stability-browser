@@ -115,6 +115,93 @@
       border-radius: 4px;
       background: white;
     }
+
+    /* -------------------------------------------------------- */
+    /* Deep Scalar Network (Function 5 widget)                  */
+    /* -------------------------------------------------------- */
+
+    .dsn-experiment {
+      margin: 1.5em 0 2.5em 0;
+    }
+    .dsn-controls {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      margin-bottom: 1em;
+      font-size: 14px;
+      flex-wrap: wrap;
+    }
+    .dsn-slider-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .dsn-value-display {
+      min-width: 44px;
+      font-family: Monaco, Consolas, monospace;
+      font-size: 13px;
+    }
+    .dsn-landscape-wrap {
+      position: relative;
+      width: 340px;
+      height: 340px;
+      flex-shrink: 0;
+      margin-left: 44px;
+      margin-bottom: 30px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      background: white;
+    }
+    .dsn-canvas-label {
+      position: absolute;
+      top: -22px;
+      left: 0; right: 0;
+      text-align: center;
+      font-size: 13px;
+      color: #555;
+      font-style: italic;
+    }
+    .dsn-landscape-wrap canvas {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      border-radius: 3px;
+    }
+    .dsn-bg { z-index: 1; }
+    .dsn-ov { z-index: 2; }
+    .dsn-x-label {
+      position: absolute;
+      bottom: -30px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 16px;
+      color: #666;
+    }
+    .dsn-y-label {
+      position: absolute;
+      left: -50px;
+      top: 50%;
+      transform: rotate(-90deg) translateX(50%);
+      transform-origin: center center;
+      font-size: 16px;
+      color: #666;
+      white-space: nowrap;
+    }
+    .dsn-tick {
+      position: absolute;
+      font-size: 13px;
+      color: #555;
+      font-family: Monaco, Consolas, monospace;
+    }
+    .dsn-tick-x {
+      bottom: -18px;
+      transform: translateX(-50%);
+    }
+    .dsn-tick-y {
+      left: -26px;
+      transform: translateY(-50%);
+      text-align: right;
+    }
   </style>
 </head>
 <body>
@@ -272,7 +359,7 @@
     <p>In fact, inspecting curvature over real training runs reveals an interesting trend - for many tasks, it tends to increase over time. We call this phenomenon <strong>progressive sharpening</strong>. It occurs across a large variety of tasks and models, and appears to be more pronounced for deeper networks.</p>
 
     <figure class="tutorial-figure">
-      <img src="imgs/ps_examples.png" alt="Examples of progressive sharpening" style="max-width: 50%;">
+      <img src="imgs/ps_examples.png" alt="Examples of progressive sharpening" style="max-width: 70%;">
       <figcaption>Placeholder figure to show that many different tasks exhibit sharpening.</figcaption>
     </figure>
     
@@ -280,7 +367,7 @@
 
     <h2>Edge of Stability and Self Stability</h2>
 
-    <p>Do we need to constantly reduce our learning rate over time in order to train? While possible, it turns out something interesting happens at the $2/\eta$ threshold. The sharpness doesn't keep growing, but instead oscillates around the threshold. This is the edge of stability. You can see this for yourself in the experiment below, where you can adjust the learning rate for this model and observe oscillations at $2/\eta$.</p>
+    <p>As you might have seen in the previous figure, something interesting happens at the $2/\eta$ threshold. The sharpness doesn't keep growing, but instead oscillates around the threshold. This is the edge of stability. You can see this for yourself in the experiment below, where you can adjust the learning rate for this model and observe oscillations at $2/\eta$.</p>
 
     <!-- Base Experiment: Progressive Sharpening + Edge of Stability
          Task: Chebyshev degree 4, 20 points, full-batch
@@ -353,7 +440,7 @@
 
     <p>The third order term is more complicated. For a single component, it results in a matrix, and stacking all the components results in a 4d tensor. However, this tensor has a surprisingly simple interpretation. To see this, we write out the single component Taylor expansion as a summation</p>
 
-    $$\frac{\partial L}{\partial w_i}(\hat{w} + xu) = \frac{\partial L(\hat{w})}{\partial w_i} + x\sum_{j=1}^p \frac{\partial^2 L(\hat{w})}{\partial w_i \partial w_j} \cdot u_j + \frac{1}{2}x^2\sum_{j,k=1}^p \frac{\partial^3 L(\hat{w}) }{\partial w_i \partial w_j \partial w_k}\cdot u_j u_k + \cdots$$
+    $$\frac{\partial L}{\partial w_i}(\hat{w} + xu) = \frac{\partial L(\hat{w})}{\partial w_i} + x\sum_{j=1}^p \frac{\partial^2 L(\hat{w})}{\partial w_i \partial w_j} \cdot u_j + \frac{1}{2}x^2\sum_{j,k=1}^p \frac{\partial^3 L(\hat{w}) }{\partial w_i \partial w_j \partial w_k}\cdot u_j u_k + O(x^3 \|u\|^3)$$
 
     <p>Note that the sharpness is given by $\lambda(w) = u^T H(w) u = \sum_{j,k} u_j \frac{\partial^2 L}{\partial w_j \partial w_k} u_k$, since $u$ is a unit eigenvector of $H$. The gradient of the sharpness with respect to $w_i$ is</p>
 
@@ -365,26 +452,83 @@
     
     <p> So the third order term pushes gradient descent into a direction that reduces the sharpness, with strength proportional to the square of oscillations. In the unstable regime where oscillations increase in amplitude, this eventually reaches a point where this term dominates and the gradient points in a direction that reduces the sharpness, counteracting the effect of progressive sharpening.</p>
       
-    <p>When the sharpness is below the threshold again, oscillations shrink. Then progressive sharpening can occur again, pushing the sharpness back up. </p>
+    <p>When the sharpness is below the threshold again, oscillations shrink. Then progressive sharpening can occur again, pushing the sharpness back up.</p>
 
-    <h3>A Visualization Of Self Stabilization</h3>
+    <p>These effects can be seen in the following diagram, which displays data from training 2000 samples of 5 class CIFAR10 on a small network. By moving the epoch slider, you can observe how the dynamics change as different terms in the Taylor expansion activate. We see that sharpness suppression very quickly takes effect when oscillations become a noticeable fraction of the gradient.</p>
 
-    <p>We demonstrate these effects by visualizing a pair of EOS oscillations in a small MLP on CIFAR10. We project the network parameters along three axes: sharpness gradient $\nabla \lambda$, the largest eigenvector $u$, and the gradient with the first two components removed. These directions all change slightly over the two oscillations, so we plot using the average direction over the trajectory. We also include arrows indicating the direction of the gradient along $\nabla \lambda$ and along $u$ in the edge of stability, so you can see how different terms become stronger in different regimes.</p>
 
-    <p>As a baseline, we show a trajectory trained with a much smaller learning rate. This makes the behaviour caused by the edge of stability much more clear.</p>
+    <figure class="tutorial-figure">
+      <div class="viewer-wrap">
 
-    <p>Initially, the trajectory is the same as the baseline without edge of stability effects. Note that $\nabla L$ has initial components along $\nabla \lambda$ (which causes progressive sharpening) and along $u$.</p>
+        <!-- Epoch slider -->
+        <div class="epoch-row">
+          <label>Epoch</label>
+          <div class="epoch-slider-wrap" id="epoch-slider-wrap">
+            <div id="region-bar"></div>
+            <div class="epoch-track-wrap" id="epoch-track-wrap">
+              <div class="epoch-track">
+                <div class="epoch-track-fill" id="epoch-track-fill"></div>
+              </div>
+              <div class="epoch-thumb" id="epoch-thumb"></div>
+            </div>
+          </div>
+          <span class="val" id="epoch-value">—</span>
+        </div>
 
-    <p>Upon hitting the edge of stability, the $u$ component starts to oscillate, dominating the gradient. The trajectory diverges from the baseline.</p>
+        <div id="load-status" style="font-size:13px;color:#888;min-height:1.4em;">Loading data…</div>
 
-    <p>Eventually oscillations become so large that the third order Taylor term starts to counteract the progressive sharpening, pushing the trajectory in a direction that reduces sharpness.</p>
+        <!-- Panels -->
+        <div class="panels" style="height:520px;">
 
-    <p>When the sharpness is below the threshold, oscillations shrink. This causes the third order term to weaken.</p>
+          <!-- Left: 2D plots -->
+          <div class="panel-2d">
+            <div class="plot2d-wrap">
+              <canvas id="canvas-xy"></canvas>
+              <span class="plot2d-label">residual (x) · sharpness λ₁ (y)</span>
+            </div>
+            <div class="plot2d-wrap">
+              <canvas id="canvas-xz"></canvas>
+              <span class="plot2d-label">residual (x) · eigenvector (y)</span>
+            </div>
+          </div>
 
-    <p>Eventually oscillations die down, and the network begins evolving normally again. Progressive sharpening dominates here, pushing the trajectory back into the edge of stability.</p>
+          <!-- Right: 3D -->
+          <div class="panel-3d">
+            <canvas id="canvas-3d"></canvas>
+            <div class="controls-overlay">
+              <span class="panel-3d-title">3D Display</span>
+              <div class="controls-overlay-bottom">
+                <div class="slider-group">
+                  <label>Tilt</label>
+                  <input type="range" id="rotx-slider" min="-90" max="0" step="1" value="-10">
+                  <span class="val" id="rotx-value">-10°</span>
+                </div>
+                <div class="slider-group">
+                  <label>Zoom</label>
+                  <input type="range" id="zoom-slider" min="0" max="1000" step="1" value="600">
+                  <span class="val" id="zoom-value">1.5</span>
+                </div>
+                <button id="fix-btn">Fix view</button>
+              </div>
+            </div>
+          </div>
 
-    <p>By playing around with this widget, you can see all the effects described. Note that in general, the sharpness gradient $\nabla \lambda$ and the largest eigenvector $u$ are not orthogonal. What we plot is a projection, rather than a decomposition, and we show the fraction of the gradient norm missed by the projection at each step.</p>
+        </div><!-- .panels -->
 
+        <div id="region-text" style="
+          padding: 10px 14px;
+          border-left: 4px solid #ddd;
+          border-radius: 3px;
+          background: #fafafa;
+          font-size: 14px;
+          line-height: 1.6;
+        ">
+          <span class="region-text-label" style="font-weight:600; font-size:11px; letter-spacing:0.5px; display:block; margin-bottom:4px; color:#999;">—</span>
+          <span class="region-text-body" style="color:#444;">Scrub the epoch slider to see region descriptions.</span>
+        </div>
+
+      </div><!-- .viewer-wrap -->
+    </figure>
     <h3>Summary</h3>
 
     <p>This completes our understanding of a single oscillating eigenvector at the edge of stability. The full trajectory is as follows:</p>
@@ -397,11 +541,102 @@
         <li>Throughout this process, the network makes steady progress to flatter regions of parameter space and lowers the loss overall, albeit with noisy spikes.</li>
     </ul>
 
-    <p>This can be visualized directly for a 2-variable model. We show the trajectory of gradient descent explicitly for $L = (1 - 0.5 x^2 - y^2)^2$ below. You can adjust the learning rate and initial parameters freely to observe regimes where edge of stability behaviour occurs.</p>
+    <p>The entire process can be visualized directly for a 2-variable model, shown below for $L = (1 - a x^2 - y^2)^2$ below. You can adjust the learning rate and $a$ freely to observe edge of stability behaviour.</p>
 
-    <p>The earlier visualization used three axes, since a third dimension is generally needed to show that the network makes steady progress to lower loss amidst the oscillations. However, in this 2d model the loss would have reached a minima without oscillations, and the sharpness reducing gradient drives all of the net motion. Thus the dynamics are fully 2D and can be completely visualized.</p>
+    <div class="dsn-experiment">
+      <div class="dsn-controls">
+        <div class="dsn-slider-group">
+          <label for="dsn5-eta-slider">$\eta$:</label>
+          <input type="range" id="dsn5-eta-slider" min="0.01" max="1.0" step="0.01" value="0.3" style="width:160px;">
+          <span id="dsn5-eta-value" class="dsn-value-display">0.200</span>
+        </div>
+        <div class="dsn-slider-group">
+          <label for="dsn5-a-slider">$a$:</label>
+          <input type="range" id="dsn5-a-slider" min="0.5" max="2.0" step="0.05" value="0.5" style="width:160px;">
+          <span id="dsn5-a-value" class="dsn-value-display">0.50</span>
+        </div>
+      </div>
 
-    <h3>Other Eigenvalues</h3>
+      <!-- Three-section layout: [loss 2D] | [sharpness 2D] | [loss + λ_max charts stacked] -->
+      <div style="display:flex; justify-content:center;">
+      <div style="display:inline-flex; gap:0; padding:24px 28px 28px 28px; border:1px solid #ccc; border-radius:6px; background:white; align-items:flex-start;">
+
+        <!-- 1. Loss 2D -->
+        <div style="display:flex; flex-direction:column; align-items:flex-start; gap:6px; flex-shrink:0;">
+          <div style="font-size:17px; color:#333; width:334px; text-align:center;">Loss</div>
+          <div class="dsn-landscape-wrap" style="width:290px; height:290px; border:none; border-radius:0; background:transparent;">
+            <canvas id="dsn5-loss-bg" class="dsn-bg" width="290" height="290"></canvas>
+            <canvas id="dsn5-loss-ov" class="dsn-ov" width="290" height="290"></canvas>
+            <div class="dsn-x-label">$x$</div>
+            <div class="dsn-y-label">$y$</div>
+            <div class="dsn-tick dsn-tick-x" style="left:0%">-2</div>
+            <div class="dsn-tick dsn-tick-x" style="left:25%">-1</div>
+            <div class="dsn-tick dsn-tick-x" style="left:50%">0</div>
+            <div class="dsn-tick dsn-tick-x" style="left:75%">1</div>
+            <div class="dsn-tick dsn-tick-x" style="left:100%">2</div>
+            <div class="dsn-tick dsn-tick-y" style="top:0%">2</div>
+            <div class="dsn-tick dsn-tick-y" style="top:25%">1</div>
+            <div class="dsn-tick dsn-tick-y" style="top:50%">0</div>
+            <div class="dsn-tick dsn-tick-y" style="top:75%">-1</div>
+            <div class="dsn-tick dsn-tick-y" style="top:100%">-2</div>
+          </div>
+        </div>
+
+        <!-- Divider -->
+        <div style="width:1px; background:#ddd; align-self:stretch; margin:0 20px; flex-shrink:0;"></div>
+
+        <!-- 2. Sharpness 2D -->
+        <div style="display:flex; flex-direction:column; align-items:flex-start; gap:6px; flex-shrink:0;">
+          <div style="font-size:17px; color:#333; width:334px; text-align:center;">Sharpness $\lambda_{\max}$</div>
+          <div class="dsn-landscape-wrap" style="width:290px; height:290px; border:none; border-radius:0; background:transparent;">
+            <canvas id="dsn5-sharp-bg" class="dsn-bg" width="290" height="290"></canvas>
+            <canvas id="dsn5-sharp-ov" class="dsn-ov" width="290" height="290"></canvas>
+            <div class="dsn-x-label">$x$</div>
+            <div class="dsn-y-label">$y$</div>
+            <div class="dsn-tick dsn-tick-x" style="left:0%">-2</div>
+            <div class="dsn-tick dsn-tick-x" style="left:25%">-1</div>
+            <div class="dsn-tick dsn-tick-x" style="left:50%">0</div>
+            <div class="dsn-tick dsn-tick-x" style="left:75%">1</div>
+            <div class="dsn-tick dsn-tick-x" style="left:100%">2</div>
+            <div class="dsn-tick dsn-tick-y" style="top:0%">2</div>
+            <div class="dsn-tick dsn-tick-y" style="top:25%">1</div>
+            <div class="dsn-tick dsn-tick-y" style="top:50%">0</div>
+            <div class="dsn-tick dsn-tick-y" style="top:75%">-1</div>
+            <div class="dsn-tick dsn-tick-y" style="top:100%">-2</div>
+          </div>
+        </div>
+
+        <!-- Divider — tighter before right panel -->
+        <div style="width:1px; background:#ddd; align-self:stretch; margin:0 12px 0 8px; flex-shrink:0;"></div>
+
+        <!-- 3. Loss + λ_max line charts stacked -->
+        <!-- height = title(21) + gap(6) + canvas(290) + margin-bottom(30) = 347px -->
+        <div style="display:flex; flex-direction:column; gap:8px; width:220px; height:347px; flex-shrink:0;">
+
+          <!-- Loss line chart -->
+          <div style="position:relative; flex:1; min-height:0; margin-left:36px; margin-bottom:6px;">
+            <canvas id="dsn5-loss-chart" style="position:absolute; top:0; left:0; width:100%; height:100%;"></canvas>
+            <div style="position:absolute; left:-32px; top:50%; transform:rotate(-90deg) translateX(50%); transform-origin:center center; font-size:12px; color:#666; white-space:nowrap;">loss</div>
+            <div style="position:absolute; bottom:-16px; left:50%; transform:translateX(-50%); font-size:12px; color:#666;">step</div>
+          </div>
+
+          <!-- λ_max line chart -->
+          <div style="position:relative; flex:1; min-height:0; margin-left:36px; margin-bottom:6px;">
+            <canvas id="dsn5-eig-chart" style="position:absolute; top:0; left:0; width:100%; height:100%;"></canvas>
+            <div style="position:absolute; left:-32px; top:50%; transform:rotate(-90deg) translateX(50%); transform-origin:center center; font-size:12px; color:#666; white-space:nowrap;">$\lambda_{\max}$</div>
+            <div style="position:absolute; bottom:-16px; left:50%; transform:translateX(-50%); font-size:12px; color:#666;">step</div>
+          </div>
+
+        </div><!-- end right charts -->
+
+      </div><!-- end outer border -->
+      </div><!-- end centering wrapper -->
+    </div><!-- end .dsn-experiment -->
+
+  
+    <p>Generally, a third dimension is generally needed to show that the network makes steady progress to lower loss amidst the oscillations. However, in this 2d model the loss would have reached a minima without oscillations, and the sharpness reducing gradient drives all of the net motion. Thus the dynamics are fully 2D and can be completely visualized.</p>
+
+    <h2>Other Eigenvalues</h2>
 
     <p>In general, more than one eigenvector undergoes progressive sharpening and ends up at the EOS. Empirically, we find the same self-stabilization occurs, but the dynamics are much more chaotic.</p>
 
@@ -537,6 +772,11 @@
     <p>where $\sigma^2 (t)$ is a quantity that models the square of the oscillation amplitude. This unknown quantity can be solved for under the condition that the sharpness stays constant at the $2/\eta$ threshold.</p>
 
     <p>This results in a simplified extension of gradient flow that models the mean trajectory of gradient descent even in the edge of stability regime. We show an example of the central flow trajectory for CIFAR10 below, showing the loss and sharpness curves that smooth out the noisy oscillations of gradient descent:</p>
+
+    <figure class="tutorial-figure">
+      <img src="imgs/ps_examples.png" alt="Examples of progressive sharpening" style="max-width: 70%;">
+      <figcaption>Placeholder figure for some central flows work.</figcaption>
+    </figure>
       
     <p>For more details, see this <a href="https://centralflows.github.io/">blog post on central flows</a>.</p>
 
@@ -549,53 +789,46 @@
 
     <p>So far, we've analyzed full-batch gradient descent — the simplest optimization algorithm. In practice, neural networks are trained with momentum, adaptive optimizers, and stochastic minibatches. How do these modifications interact with the edge of stability?</p>
 
-    <details class="accordion">
-      <summary>Momentum</summary>
-      <div class="accordion-body">
-        <p>In most of our experiments, we choose learning rates below the initial critical threshold and watch progressive sharpening drive the network to the edge of stability. But what happens if we start with $\eta > 2/\lambda_0$? There are two regimes: a <strong>catapult phase</strong>, where sharpness initially drops and the model still learns successfully, and a <strong>divergent phase</strong>, where the learning rate is so large that the model diverges without learning anything. <sup><a href="#ref-lewkowycz2020">[4]</a></sup></p>
-
-        <div class="preset-buttons">
-          <button class="load-runs-button" data-load-runs="runs/learning_rate/catapult_phase.json,runs/learning_rate/default_phase.json,runs/learning_rate/unstable_phase.json">Three Learning Rate Regimes Example</button>
-        </div>
-      </div>
-    </details>
+    <figure class="tutorial-figure">
+      <img src="imgs/ps_examples.png" alt="Examples of progressive sharpening" style="max-width: 70%;">
+      <figcaption>Placeholder figure showing momentum also experiences an EOS (with a larger sharpness threshold) and that in Adam (with no momentum?), oscillations are suppressed very quickly.</figcaption>
+    </figure>
 
     <h3>Momentum</h3>
 
     <p>Momentum involves maintaining a velocity term that accumulates past gradients. This accelerates convergence along consistent gradient directions, and can help escape flat regions with low gradients. But it also has interesting interactions with curvature and the edge of stability. Its effects can be analyzed by studying the quadratic case again. Here, we'll go through Polyak (heavy ball) momentum, which is closely related to the momentum used in practical optimizers like Adam:</p>
 
-    $$v_{t+1} = \beta v_t - \eta \nabla L(x_t)$$
-    $$x_{t+1} = x_t + v_{t+1}$$
+    <p>$$v_{t+1} = \beta v_t - \eta \nabla L(x_t)$$</p>
+    <p>$$x_{t+1} = x_t + v_{t+1}$$</p>
 
     <p>The momentum coefficient $\beta$ controls how much past gradients are accumulated. For $\beta = 0$, this reduces to plain gradient descent.</p>
 
     <p>On a 1D quadratic $L(x_t) = \frac{1}{2}Sx^2$, we use $\nabla L(x_t) = Sx_t$ and $v_t = x_t - x_{t-1}$ to obtain a second-order recurrence in $x_t$ alone:</p>
 
-    $$x_{t+1} = (1 + \beta - \eta S)x_t - \beta x_{t-1}$$
+    <p>$$x_{t+1} = (1 + \beta - \eta S)x_t - \beta x_{t-1}$$</p>
 
-    <p>This is a linear second-order recurrence. Standard results on such recurrences (CITE THEOREM 2.37 in Elaydi (2005)) show that it diverges when:</p>
+    <p>This is a linear second-order recurrence. Standard results on such recurrences <sup><a href="#ref-elaydi2005">[3]</a></sup> show that it diverges when:</p>
 
-    $$S > \frac{2(1+\beta)}{\eta}$$
+    <p>$$S > \frac{2(1+\beta)}{\eta}$$</p>
 
-    which is larger than the standard edge of stability $2/\eta$. In this case, momentum makes it possible to train in regions of higher curvature. This extends to the multidimensional case, with the stability threshold again applying to the largest eigenvalue. The self-stabilization analysis from the previous section also applies beyond this threshold, ensuring the sharpness is fixed at the new critical threshold $\frac{2(1+\beta)}{\eta}$.
-    
-    We can repeat this analysis for other types of momentum, which yield different results (e.g., Nesterov momentum yields $\frac{1}{\eta} \left( \frac{2 + 2 \beta}{1 + 2 \beta}\right)$, which means it is more unstable than vanilla GD).
+    <p>which is larger than the standard edge of stability $2/\eta$. In this case, momentum makes it possible to train in regions of higher curvature. This extends to the multidimensional case, with the stability threshold again applying to the largest eigenvalue. The self-stabilization analysis from the previous section also applies beyond this threshold, ensuring the sharpness is fixed at the new critical threshold $\frac{2(1+\beta)}{\eta}$.</p>
+
+    <p>We can repeat this analysis for other types of momentum, which yield different results (e.g., Nesterov momentum yields $\frac{1}{\eta} \left( \frac{2 + 2 \beta}{1 + 2 \beta}\right)$, which means it is more unstable than vanilla GD).</p>
 
     <h3>Adam And Other Adaptive Optimizers</h3>
 
     <p>Adaptive gradient methods like Adam adjust their learning rates per-parameter based on recent gradient history. Why Adam is so effective at optimizing large neural networks may be partially explained by its interaction with the edge of stability.</p>
-      
+
     <p>Our analysis so far has assumed a single learning rate shared across all parameters. With per-parameter learning rates, the stability analysis changes: instead of the eigenvalues of the Hessian $H$, the relevant quantities are the eigenvalues of $PH$, where $P$ is a diagonal matrix of per-parameter learning rates. A properly chosen set of learning rates $P$ can in theory reduce the large eigenvalues while at the same time ensuring fast convergence among the smaller eigenvalues.</p>
 
-    <p>This turns out to be what adaptive optimizers do: by maintaining a running estimate of each parameter's gradient variance, they detect which parameters oscillate heavily, and automatically reduce the associated learning rates. This suppresses oscillations in directions that cause instability. This is more effective than waiting for the slow self-stabilization mechanism to steer the network out of the unstable region, and may explain why Adam requires less learning rate tuning than plain gradient descent. </p>
-
+    <p>This turns out to be what adaptive optimizers do: by maintaining a running estimate of each parameter's gradient variance, they detect which parameters oscillate heavily, and automatically reduce the associated learning rates. This suppresses oscillations in directions that cause instability <sup><a href="#ref-cohen2022adaptive">[3]</a></sup>. This is more effective than waiting for the slow self-stabilization mechanism to steer the network out of the unstable region, and may explain why Adam requires less learning rate tuning than plain gradient descent.</p>
     <h3>Stochastic Gradient Descent</h3>
 
     <p>Stochastic minibatches introduce noise into the gradient estimation. Although issues with large learning rates and stability still occur, the typical signs of edge of stability - loss spikes and a clear sharpness cutoff - are harder to detect since loss is inherently erratic under SGD, and there is plenty of noise in the per batch sharpness values.
       
-    On the theoretical side, much of our analysis assumed full-batch gradients, where the loss landscape is the same over mutliple steps. In SGD, this assumption is no longer valid, and our analysis of effects such as self-stability does not necessarily hold since the directions involved may change constantly.
+    <p>On the theoretical side, much of our analysis assumed full-batch gradients, where the loss landscape is the same over mutliple steps. In SGD, this assumption is no longer valid, and our analysis of effects such as self-stability does not necessarily hold since the directions involved may change constantly.</p>
 
-    On the empirical side, it has been observed that for fairly large batch sizes much of the previously discussed edge of stability behaviour still arises. We invite interested readers to explore with the interactive experiments at the bottom of this article.
+    <p>On the empirical side, it has been observed that for fairly large batch sizes much of the previously discussed edge of stability behaviour still arises. We invite interested readers to explore with the interactive experiments at the bottom of this article.</p>
 
     <div class="preset-buttons">
     <button class="load-runs-button" data-load-runs="runs/sgd/cheby_sgd_full.json,runs/sgd/cheby_sgd_larger_batch.json,runs/sgd/cheby_sgd_eos.json">SGD Example</button>
@@ -624,7 +857,6 @@
     <p>For those interested in details on experiments on progressive sharpening, along with these experiments we refer readers to the appendix of the original paper on the edge of stability.<sup><a href="#ref-cohen2021">[1]</a></sup></p>
 
   </div><!-- end .tutorial-content -->
-
   <!-- ============================================================ -->
   <!-- PLAYGROUND (existing SETUP + SIMULATION, unchanged) -->
   <!-- ============================================================ -->
@@ -874,7 +1106,9 @@
   <details class="accordion" id="footnote-smoothness">
     <summary>On the Guaranteed Loss Decreases</summary>
     <div class="accordion-body">
-      <p>More precisely, if $\nabla L$ is $M$-Lipschitz continuous (i.e., the curvature is bounded everywhere by $M$), then choosing $\eta < \frac{2}{M}$ guarantees monotone descent. This is a <em>global</em> condition &mdash; it requires a learning rate conservative enough to work everywhere in parameter space. The $\frac{2}{\lambda_{\max}}$ threshold from the quadratic analysis is a <em>local</em> condition: it depends on the curvature at the current iterate, which changes during training. The two thresholds coincide when the current iterate happens to be at the point of maximum curvature.</p>
+      <p>More precisely, if $\nabla L$ is $M$-Lipschitz continuous (i.e., the curvature is bounded everywhere by $M$), then choosing $\eta < \frac{2}{M}$ guarantees monotone descent <sup><a href="#ref-nesterov2018">[3]</a></sup>. This is a <em>global</em> condition &mdash; it requires a learning rate conservative enough to work everywhere in parameter space. The $\frac{2}{\lambda_{\max}}$ threshold from the quadratic analysis is a <em>local</em> condition: it depends on the curvature at the current iterate, which changes during training. </p>
+      
+      <p>It is possible for the local condition to be satisfied at every point visited, yet violated globally (e.g., an extremely sharp minimum exists far from the training trajectory, with curvature $>>M$).</p>
     </div>
   </details>
   <details class="accordion" id="footnote-hessian">
@@ -904,7 +1138,10 @@
   <ol class="references">
     <li id="ref-cohen2021">Cohen, J., Kaur, S., Li, Y., Kolter, J.Z., &amp; Talwalkar, A. (2021). Gradient Descent on Neural Networks Typically Occurs at the Edge of Stability. <em>ICLR 2021.</em> <a href="https://arxiv.org/abs/2103.00065">arXiv</a></li>
     <li id="ref-damian2022">Damian, A., Nichani, E., &amp; Lee, J.D. (2022). Self-Stabilization: The Implicit Bias of Gradient Descent at the Edge of Stability. <em>ICLR 2023.</em> <a href="https://arxiv.org/abs/2209.15594">arXiv</a></li>
+    <li id="ref-cohen2022adaptive">Cohen, J.M., Ghorbani, B., Krishnan, S., Agarwal, N., Medapati, S., Badura, M., Suo, D., Cardoze, D., Nado, Z., Dahl, G.E., &amp; Gilmer, J. (2022). Adaptive Gradient Methods at the Edge of Stability. <em>arXiv preprint arXiv:2207.14484</em>. <a href="https://arxiv.org/abs/2207.14484">arXiv</a></li>
     <li id="ref-cohen2024">Cohen, J.M., Damian, A., Talwalkar, A., Kolter, J.Z., &amp; Lee, J.D. (2024). Understanding Optimization in Deep Learning with Central Flows. <a href="https://arxiv.org/abs/2410.24206">arXiv</a></li>
+    <li id="ref-nesterov2018">Nesterov, Y. (2018). <em>Lectures on Convex Optimization</em> (2nd ed.). Springer. (See Section 1.2.3 for the descent lemma).</li>
+    <li id="ref-elaydi2005">Elaydi, S. (2005). <em>An Introduction to Difference Equations</em> (3rd ed.). Springer. (See Theorem 2.37 for the stability criterion for second-order linear recurrences).</li>
     <li id="ref-lewkowycz2020">Lewkowycz, A., Bahri, Y., Dyer, E., Sohl-Dickstein, J., &amp; Gur-Ari, G. (2020). The Large Learning Rate Phase of Deep Learning: the Catapult Mechanism. <a href="https://arxiv.org/abs/2003.02218">arXiv</a></li>
   </ol>
 
@@ -960,6 +1197,12 @@
 
 <!-- Application (ES6 module) -->
 <script type="module" src="app.js"></script>
+
+<!-- Weight-space trajectory viewer -->
+<script type="module" src="interactive_3d.js"></script>
+
+<!-- Function 5 widget -->
+<script type="module" src="dsn5.js"></script>
 
 </body>
 </html>
