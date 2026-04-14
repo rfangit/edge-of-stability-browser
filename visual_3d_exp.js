@@ -1,7 +1,7 @@
 // experiments2.js — 3D trajectory viewer, Canvas 2D
 
 // ---- Config ----
-const DATA_PATH   = 'runs/cifar10_sharp/gradient_displacement_data.json';
+const DATA_PATH   = 'runs/cifar10_sharp/gradient_displacement_data_old.json';
 const MAP_X       = 'residual_direction';
 const MAP_Y       = 'sharpness_gradient';  // negated for display
 const MAP_Z       = 'top_eigenvector';     // negated for display
@@ -115,7 +115,9 @@ async function init() {
     loadStatus.textContent = 'Loading data…';
     const resp = await fetch(DATA_PATH);
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    dataset = parseDataset(await resp.json());
+    const raw = await resp.json();
+    console.log(JSON.stringify(Object.keys(raw.displacements))); // ← add this
+    dataset = parseDataset(raw);
 
     const n = dataset.points.length;
     epochSlider.min   = 1;

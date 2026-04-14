@@ -21,7 +21,7 @@ function initBaseExperiment() {
 
   // Populate info label from defaults
   const infoEl = document.getElementById('base-experiment-info');
-  if (infoEl) infoEl.textContent = `${describeDefaults(CHEBYSHEV_DEFAULTS)}, Chebyshev degree ${CHEBYSHEV_DEFAULTS.taskParams.degree}, ${CHEBYSHEV_DEFAULTS.taskParams.nTrain} points — runs for 5000 steps`;
+  if (infoEl) infoEl.textContent = `tanh, 2 hidden layers (${CHEBYSHEV_DEFAULTS.hiddenDims.join('+')}), Chebyshev degree ${CHEBYSHEV_DEFAULTS.taskParams.degree}, ${CHEBYSHEV_DEFAULTS.taskParams.nTrain} points — runs for 5000 steps`;
 
   const sim = new Simulation({ maxSteps: 5000, kEigs: 1, stepsPerSecId: null });
   const lossChart = new LossChart('base-experiment-loss', { showTest: false, showEma: false });
@@ -43,11 +43,40 @@ function initBaseExperiment() {
     startBtn.disabled = true;
   };
 
+  const DEFAULT_ETA = CHEBYSHEV_DEFAULTS.eta;
+  const lrSlider = document.getElementById('base-experiment-lr-slider');
+  const lrValueEl = document.getElementById('base-experiment-lr-value');
+  const lrDefaultBtn = document.getElementById('base-experiment-lr-default');
+
+  function setEta(val) {
+    if (lrSlider) lrSlider.value = val;
+    if (lrValueEl) lrValueEl.textContent = parseFloat(val).toFixed(2);
+  }
+
+  // Initialise display to DEFAULT_ETA on load
+  setEta(DEFAULT_ETA);
+
+  if (lrSlider) {
+    lrSlider.addEventListener('input', () => {
+      lrValueEl.textContent = parseFloat(lrSlider.value).toFixed(2);
+    });
+  }
+
+  if (lrDefaultBtn) {
+    lrDefaultBtn.addEventListener('click', () => {
+      setEta(DEFAULT_ETA);
+    });
+  }
+
+  function getEta() {
+    return lrSlider ? parseFloat(lrSlider.value) : DEFAULT_ETA;
+  }
+
   startBtn.addEventListener('click', () => {
     if (!sim.isRunning) {
       if (!sim.model) {
         const d = CHEBYSHEV_DEFAULTS;
-        sim.captureParams(d.taskKey, d.taskParams, d.activation, d.hiddenDims, d.eta, d.batchSize, d.modelSeed);
+        sim.captureParams(d.taskKey, d.taskParams, d.activation, d.hiddenDims, getEta(), d.batchSize, d.modelSeed);
       }
       sim.start();
       startBtn.textContent = 'pause';
@@ -57,6 +86,7 @@ function initBaseExperiment() {
     }
   });
 
+  // Reset clears the simulation and charts but leaves the LR slider where it is
   resetBtn.addEventListener('click', () => {
     sim.reset();
     lossChart.clear();
@@ -77,9 +107,9 @@ function initMultiEigenvalues() {
   const resetBtn = document.getElementById('multi-eigenvalues-reset');
   if (!startBtn) return null;
 
-  // Populate info label from defaults
+  // Populate info label from defaults (no explicit lr)
   const infoEl = document.getElementById('multi-eigenvalues-info');
-  if (infoEl) infoEl.textContent = `${describeDefaults(CHEBYSHEV_DEFAULTS)}, 3 eigenvalues — stop when ready`;
+  if (infoEl) infoEl.textContent = `tanh, 2 hidden layers (${CHEBYSHEV_DEFAULTS.hiddenDims.join('+')}), 3 eigenvalues — stop when ready`;
 
   const sim = new Simulation({ kEigs: 3, stepsPerSecId: null });
   const lossChart = new LossChart('multi-eigenvalues-loss', { showTest: false, showEma: false });
@@ -96,11 +126,37 @@ function initMultiEigenvalues() {
     startBtn.disabled = true;
   };
 
+  const DEFAULT_ETA = CHEBYSHEV_DEFAULTS.eta;
+  const lrSlider = document.getElementById('multi-eigenvalues-lr-slider');
+  const lrValueEl = document.getElementById('multi-eigenvalues-lr-value');
+  const lrDefaultBtn = document.getElementById('multi-eigenvalues-lr-default');
+
+  function setEta(val) {
+    if (lrSlider) lrSlider.value = val;
+    if (lrValueEl) lrValueEl.textContent = parseFloat(val).toFixed(2);
+  }
+
+  setEta(DEFAULT_ETA);
+
+  if (lrSlider) {
+    lrSlider.addEventListener('input', () => {
+      lrValueEl.textContent = parseFloat(lrSlider.value).toFixed(2);
+    });
+  }
+
+  if (lrDefaultBtn) {
+    lrDefaultBtn.addEventListener('click', () => setEta(DEFAULT_ETA));
+  }
+
+  function getEta() {
+    return lrSlider ? parseFloat(lrSlider.value) : DEFAULT_ETA;
+  }
+
   startBtn.addEventListener('click', () => {
     if (!sim.isRunning) {
       if (!sim.model) {
         const d = CHEBYSHEV_DEFAULTS;
-        sim.captureParams(d.taskKey, d.taskParams, d.activation, d.hiddenDims, d.eta, d.batchSize, d.modelSeed);
+        sim.captureParams(d.taskKey, d.taskParams, d.activation, d.hiddenDims, getEta(), d.batchSize, d.modelSeed);
       }
       sim.start();
       startBtn.textContent = 'pause';
@@ -110,6 +166,7 @@ function initMultiEigenvalues() {
     }
   });
 
+  // Reset clears the simulation and charts but leaves the LR slider where it is
   resetBtn.addEventListener('click', () => {
     sim.reset();
     lossChart.clear();

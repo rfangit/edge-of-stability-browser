@@ -347,7 +347,7 @@
           </div>
         </div>
       </div>
-      <figcaption>In the multi-dimensional case, gradient descent is unstable as long as one eigenvalue is too large.</figcaption>
+      <figcaption>In the multi-dimensional case, gradient descent is unstable if one eigenvalue is too large, causing it to diverge along that direction.</figcaption>
     </figure>
 
     <h2>Progressive Sharpening</h2>
@@ -360,7 +360,7 @@
 
     <figure class="tutorial-figure">
       <img src="imgs/ps_examples.png" alt="Examples of progressive sharpening" style="max-width: 70%;">
-      <figcaption>Placeholder figure to show that many different tasks exhibit sharpening.</figcaption>
+      <figcaption>Across many tasks and models, the sharpness of our neural networks tends to increase throughout training, until reaching our previously calculated stability threshold of $2/\eta$. The above results were obtained on a subset of CIFAR-10. Original graphic from the <a href="https://centralflows.github.io/">central flows blog.</a></figcaption>
     </figure>
     
     <p>While the reasons for progressive sharpening are not fully understood, the consequence is clear: most practical learning rates, which start out well behaved, will eventually reach the $2/\eta$ threshold. Learning rates that avoid this threshold are so small that training becomes impractically slow. This makes the edge of stability an inevitable part of training for any practical learning rate.</p>
@@ -380,6 +380,13 @@
       <div class="tutorial-widget-controls">
         <button id="base-experiment-start" class="sim-button">start</button>
         <button id="base-experiment-reset" class="sim-button">reset</button>
+        <div class="gd-ctrl-group">
+          <label for="base-experiment-lr-slider">$\eta$:</label>
+          <input type="range" id="base-experiment-lr-slider"
+                 min="0.1" max="0.3" step="0.01" value="0.2">
+          <span id="base-experiment-lr-value" class="gd-ctrl-value">0.20</span>
+          <button id="base-experiment-lr-default" class="gd-ctrl-btn" title="Reset η to default (0.20)">↺ default</button>
+        </div>
         <span id="base-experiment-info" class="tutorial-widget-info"></span>
       </div>
       <div class="tutorial-widget-charts">
@@ -402,6 +409,7 @@
           </div>
         </div>
       </div>
+      <figcaption>In browser training for a MLP on a Chebyshev polynomial (a simple toy task).</a></figcaption>
     </div>
 
     <p>This phenomenon where the sharpness decreases after crossing the $2/\eta$ threshold is known as self-stability. It can be explained by going beyond classical theory with a <strong>third order Taylor expansion of the loss</strong>. To understand this, we'll go through a heuristic derivation for a single eigenvector at the edge of stability.</p>
@@ -500,15 +508,20 @@
               <div class="controls-overlay-bottom">
                 <div class="slider-group">
                   <label>Tilt</label>
-                  <input type="range" id="rotx-slider" min="-90" max="0" step="1" value="-10">
+                  <input type="range" id="rotx-slider" min="-90" max="0" step="1" value="-10" style="width:160px">
                   <span class="val" id="rotx-value">-10°</span>
                 </div>
                 <div class="slider-group">
+                  <label>Rotate</label>
+                  <input type="range" id="roty-slider" min="-90" max="90" step="1" value="0" style="width:160px">
+                  <span class="val" id="roty-value">0°</span>
+                </div>
+                <div class="slider-group">
                   <label>Zoom</label>
-                  <input type="range" id="zoom-slider" min="0" max="1000" step="1" value="600">
+                  <input type="range" id="zoom-slider" min="0" max="1000" step="1" value="600" style="width:160px">
                   <span class="val" id="zoom-value">1.5</span>
                 </div>
-                <button id="fix-btn">Fix view</button>
+                <button id="fix-btn">Fix Horizontal View</button>
               </div>
             </div>
           </div>
@@ -677,6 +690,13 @@
       <div class="tutorial-widget-controls">
         <button id="multi-eigenvalues-start" class="sim-button">start</button>
         <button id="multi-eigenvalues-reset" class="sim-button">reset</button>
+        <div class="gd-ctrl-group">
+          <label for="multi-eigenvalues-lr-slider">$\eta$:</label>
+          <input type="range" id="multi-eigenvalues-lr-slider"
+                 min="0.1" max="0.3" step="0.01" value="0.2">
+          <span id="multi-eigenvalues-lr-value" class="gd-ctrl-value">0.20</span>
+          <button id="multi-eigenvalues-lr-default" class="gd-ctrl-btn" title="Reset η to default (0.20)">↺ default</button>
+        </div>
         <span id="multi-eigenvalues-info" class="tutorial-widget-info"></span>
       </div>
       <div class="tutorial-widget-charts">
@@ -699,6 +719,7 @@
           </div>
         </div>
       </div>
+      <figcaption>Multiple eigenvalues of a MLP on a Chebyshev polynomial.</a></figcaption>
     </div>
 
     <p>Note that oscillations in the top eigenvalue tend to appear in the other eigenvalues. This is unsurprising: the sharpness gradients $\nabla\lambda_k$ for different eigenvalues are generally not orthogonal. When the direction of the gradient changes rapidly - e.g., at the EOS due to third order terms - it will result in large changes in all eigenvalues.</p>
@@ -776,8 +797,8 @@
     <p>This results in a simplified extension of gradient flow that models the mean trajectory of gradient descent even in the edge of stability regime. We show an example of the central flow trajectory for CIFAR10 below, showing the loss and sharpness curves that smooth out the noisy oscillations of gradient descent:</p>
 
     <figure class="tutorial-figure">
-      <img src="imgs/ps_examples.png" alt="Examples of progressive sharpening" style="max-width: 70%;">
-      <figcaption>Placeholder figure for some central flows work.</figcaption>
+      <img src="imgs/centralflow.png" alt="Examples of progressive sharpening" style="max-width: 70%;">
+      <figcaption>Central flow (black, dashed) approximates the true behaviour of a neural network (blue), but with the loss spikes averaged out. The idea behind central flows is shown nicely by looking at the sharpness, where we see it enforces a condition keeping the sharpness at the edge of stability instead of oscillating. Results shown for a MLP on a 4 class 1000 example subset of CIFAR-10.</figcaption>
     </figure>
       
     <p>For more details, see this <a href="https://centralflows.github.io/">blog post on central flows</a>.</p>
@@ -793,7 +814,7 @@
 
     <figure class="tutorial-figure">
       <img src="imgs/ps_examples.png" alt="Examples of progressive sharpening" style="max-width: 70%;">
-      <figcaption>Placeholder figure showing momentum also experiences an EOS (with a larger sharpness threshold) and that in Adam (with no momentum?), oscillations are suppressed very quickly.</figcaption>
+      <figcaption>Training a MLP on a subset of CIFAR10 with full batch GD, momentum, Adam, and SGD. Momentum results in a different (calculable) EOS threshold. Adam suppresses oscillations much faster, as it shrinks the learning rate for the oscillatory components. SGD is inherently noisy, making it hard to detect the EOS or oscillations.</figcaption>
     </figure>
 
     <h3>Momentum</h3>

@@ -133,6 +133,11 @@ function matRotX(a) {
   return [1, 0, 0, 0,  0, c, -s, 0,  0, s, c, 0,  0, 0, 0, 1];
 }
 
+function matRotY(a) {
+  const c = Math.cos(a), s = Math.sin(a);
+  return [c, 0, s, 0,  0, 1, 0, 0,  -s, 0, c, 0,  0, 0, 0, 1];
+}
+
 function matTranslate(x, y, z) {
   return [1, 0, 0, 0,  0, 1, 0, 0,  0, 0, 1, 0,  x, y, z, 1];
 }
@@ -213,6 +218,8 @@ async function init() {
   const epochWrap  = document.getElementById('epoch-track-wrap');
   const rotXSlider = document.getElementById('rotx-slider');
   const rotXVal    = document.getElementById('rotx-value');
+  const rotYSlider = document.getElementById('roty-slider');
+  const rotYVal    = document.getElementById('roty-value');
   const zoomSlider = document.getElementById('zoom-slider');
   const zoomVal    = document.getElementById('zoom-value');
   const loadStatus = document.getElementById('load-status');
@@ -235,6 +242,7 @@ async function init() {
 
   // ---- Camera state ----
   let ax        = -10 * Math.PI / 180;   // X-axis tilt (radians)
+  let ay        = 0;                     // Y-axis rotation (radians)
   let zoom      = 1.2;
   let panX      = 0, panY = 0;
   let autoX     = 0;                     // auto-follow the current tip along X
@@ -395,6 +403,11 @@ async function init() {
     rotXVal.textContent = rotXSlider.value + '°';
   });
 
+  rotYSlider.addEventListener('input', () => {
+    ay = Math.max(-90, Math.min(90, parseFloat(rotYSlider.value))) * Math.PI / 180;
+    rotYVal.textContent = rotYSlider.value + '°';
+  });
+
   zoomSlider.addEventListener('input', () => {
     zoom = sliderToZoom(parseFloat(zoomSlider.value));
     zoomVal.textContent = zoom.toFixed(2);
@@ -419,7 +432,7 @@ async function init() {
   const fixBtn = document.getElementById('fix-btn');
   fixBtn.addEventListener('click', () => {
     fixedView = !fixedView;
-    fixBtn.textContent      = fixedView ? 'Unfix view' : 'Fix view';
+    fixBtn.textContent      = fixedView ? 'Unfix Horizontal' : 'Fix Horizontal';
     fixBtn.style.fontWeight = fixedView ? '600' : 'normal';
   });
 
@@ -451,9 +464,20 @@ async function init() {
     ctx3d.fillStyle = '#fff';
     ctx3d.fillRect(0, 0, W, H);
 
+    // Rotation must pivot around the current view centre (autoX + panX in world space).
+    // Order: (1) translate the pivot point to the world origin, (2) rotate, (3) pull back
+    // along Z for zoom.  The separate panX/autoX translation is folded into the pivot
+    // so that Y-rotation always spins around whatever point the user is looking at.
+    const cx = autoX + panX;   // world-space X of the current centre
     const mvp = matMul(
       matPerspective(Math.PI / 4, W / H),
-      matMul(matTranslate(autoX + panX, panY, -zoom), matRotX(ax))
+      matMul(
+        matTranslate(0, panY, -zoom),
+        matMul(
+          matMul(matRotX(ax), matRotY(ay)),
+          matTranslate(cx, 0, 0)
+        )
+      )
     );
 
     const { x0, x1, y0, y1, z0, z1 } = ext;

@@ -233,9 +233,17 @@ class GDQuadPanel {
     ctx.fillStyle = color;
     ctx.fillText(statusText, this.W / 2, 34);
 
+    // Add function text below status
+    const halfS = parseFloat((0.5 * this.S).toFixed(3));
+    const functionText = `f(w) = ${halfS} w²`;
+    
+    ctx.font      = '400 16px system-ui, -apple-system, sans-serif';
+    ctx.fillStyle = '#000000';
+    ctx.fillText(functionText, this.W / 2, 56);
+
     ctx.restore();
   }
-}
+} // end GDQuadPanel
 
 // ============================================================================
 // GDQuadPair — orchestrator: two panels, same η, same θ₀, different S
