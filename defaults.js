@@ -23,15 +23,6 @@ export const TOY_MULTIDIM_DEFAULTS = {
   modelSeed: 0
 };
 
-export const FASHION_MNIST_DEFAULTS = {
-  taskKey: 'fashionMnist',
-  activation: 'tanh',
-  hiddenDims: [20, 20],
-  eta: 0.2,
-  batchSize: 250,
-  modelSeed: 0
-};
-
 export const LINEAR_REGRESSION_DEFAULTS = {
   taskKey: 'linearRegression',
   taskParams: { inputDim: 5, outputDim: 3, nTrain: 100, noise: 0, initScale: 0.01, seed: 0 },

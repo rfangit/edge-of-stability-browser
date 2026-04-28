@@ -8,15 +8,15 @@ Live at: https://rfangit.github.io/edge-of-stability/
 ## Architecture
 
 ### Configuration
-- **defaults.js** — Single source of truth for all default hyperparameters (Chebyshev, Toy Multi-Dim, MNIST). All other files import from here. Includes `toAppStateFormat()` and `describeDefaults()` helpers.
+- **defaults.js** — Single source of truth for all default hyperparameters (Chebyshev, Toy Multi-Dim, Linear Regression). All other files import from here. Includes `toAppStateFormat()` and `describeDefaults()` helpers.
 - **state.js** — `AppState` class with localStorage persistence. Derives its defaults from `defaults.js`.
 - **config.js** — Network visualization SVG constants.
 
 ### Core ML
-- **model.js** — `MLP` class. Configurable layer sizes, activation (tanh/relu), muP-inspired initialization (W ~ N(0, 1/fan_in)), optional seeded PRNG for reproducibility.
+- **model.js** — `MLP` class. Configurable layer sizes, activation (tanh/relu/gelu/linear), muP-inspired initialization (W ~ N(0, 1/fan_in)), optional seeded PRNG for reproducibility.
 - **training.js** — `Trainer` class. SGD with manual backprop over fixed datasets. Mini-batch support with shuffle-and-epoch. Exposes `computeGradientFlat()` for the Hessian module. Loss is ½MSE.
 - **hessian.js** — Lanczos algorithm for top-k Hessian eigenvalue estimation. Uses finite-difference Hessian-vector products via the Trainer's gradient computation.
-- **tasks.js** — Task registry (Chebyshev, Toy Multi-Dimensional, MNIST). Each task defines dataset generation, UI parameter config, slider ranges, and recommended EoS settings derived from `defaults.js`.
+- **tasks.js** — Task registry (Chebyshev, Toy Multi-Dimensional, Linear Regression). Each task defines dataset generation, UI parameter config, slider ranges, and recommended EoS settings derived from `defaults.js`.
 
 ### Simulation
 - **simulation.js** — `Simulation` class. Training loop controller with adaptive frame-rate stepping, records loss/test loss/eigenvalue histories, divergence detection (stops if loss > 100K). Stores captured params for accurate saved-run export.
@@ -26,7 +26,7 @@ Live at: https://rfangit.github.io/edge-of-stability/
 - **chart-utils.js** — Shared Chart.js utilities (`formatTickLabel`, `baseChartOptions`, `CHART_FONT`). Imported by all chart-creating modules to avoid duplication.
 - **visualization.js** — `LossChart` and `RightChart` for the main playground. Supports EMA smoothing, log scale, effective time axis, and clip sharpness (cap y-axis at 3× threshold).
 - **incremental-cache.js** — Efficient incremental downsampling and EMA for chart data. Caps displayed points at 1000.
-- **ema.js** — EMA utility functions used by incremental-cache.
+- **ema.js** — Standalone EMA/downsample utilities. Not currently imported by any module (incremental-cache.js has its own inline EMA); retained in case other widgets want non-incremental smoothing.
 
 ### Tutorial Widgets (tutorial.js)
 Three inline training demonstrations embedded in the tutorial text:
@@ -63,10 +63,6 @@ Wires everything together:
   - `runs/title_plot/run.json` — Hero plot data.
   - `runs/activation_fn/` — ReLU vs tanh comparison runs.
 - **imgs/** — Tutorial figures (quadratic optimization, stable regions, etc.).
-- **mnist_subset.bin** — Precomputed MNIST data (~48KB binary).
-
-### Support Files
-- **export_mnist.py** — Python script to generate `mnist_subset.bin`.
 
 ## JSON Run Format
 ```json

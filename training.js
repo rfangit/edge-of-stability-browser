@@ -2,7 +2,7 @@
 // TRAINING - SGD with backpropagation for MLP
 // ============================================================================
 // Generic layer-loop backprop that works for any number of layers,
-// any input dimension, any output dimension, and tanh or relu activation.
+// any input dimension, any output dimension, and tanh/relu/gelu/linear activations.
 // The Trainer operates on a fixed dataset, iterating through it in mini-batches.
 // When the dataset is exhausted, it reshuffles and starts a new epoch.
 //
@@ -18,7 +18,7 @@ export class Trainer {
    * @param {{ x: number[][], y: (number[]|number)[] }} dataset - fixed training data
    *   x[i] is the i-th input vector (array of length inputDim).
    *   y[i] is the i-th target: a scalar (number) for 1D output tasks,
-   *     or an array (e.g. one-hot vector) for multi-output tasks like MNIST.
+   *     or an array (e.g. multi-output regression vector) for multi-output tasks.
    */
   constructor(model, learningRate, batchSize, dataset) {
     this.model = model;
@@ -234,7 +234,7 @@ export class Trainer {
    * and biases, return loss on the mini-batch.
    *
    * Loss is MSE: L = (1/2) Σ_j (y_j - ŷ_j)² per sample, averaged over batch.
-   * This works for both scalar output (Chebyshev, toy) and vector output (MNIST).
+   * This works for both scalar output (Chebyshev, toy) and vector output (e.g. linear regression).
    *
    * @returns {number} average loss on this mini-batch
    */
@@ -337,9 +337,10 @@ export class Trainer {
       }
     }
 
-    // 4. Average gradients, store the flat gradient, then update parameters
-    //    lastGradFlat is η-scaled so it equals the actual weight *update* vector
-    //    (Δθ = −η·g), matching what Simulation uses for projection.
+    // 4. Average gradients, store the flat gradient, then update parameters.
+    //    lastGradFlat holds the raw (unscaled) gradient vector — same layout
+    //    as hessian.js flattenParams / computeGradientFlat. The actual weight
+    //    update is θ ← θ − η·g, applied below.
     const flatGrad = [];
     const ub = model.useBias;
     for (let l = 0; l < numLayers; l++) {

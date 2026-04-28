@@ -752,3 +752,94 @@
 
 </body>
 </html>
+
+    
+
+    The above concerned itself only with the trajectory of a single oscillation eigenvector in a brief window of the edge of stability. What does the full trajectory look like? We have some initial reduction in the loss, progressive sharpening, and self stability, and in many cases, the loss does tend to decrease overall.
+
+    For a toy model, see this widget. For a real model, see the hero plot at the top of the page. In both cases, we see the same general pattern: the sharpness increases to meet the $2/\eta$ threshold, and then oscillates around it for the rest of training. The loss decreases throughout this process, albeit with some spikes when multiple eigenvalues are at the edge simultaneously. It eventually finds a minima if the LR is low enough.
+    
+    Note however this model is quite small, and may not reflect the behaviour of true models. Nevertheless, it does display the progressive reduction in loss that we see in real models, and the same general pattern of progressive sharpening followed by self-stabilization at the edge of stability.
+
+        
+    
+    Thus there will be effects in other eigenvalues when direction of the gradient changes rapidly - as it does at the EOS thanks to the third order terms - and causes ripples.
+
+    We can see this in the following experiment, which tracks three eigenvalues at once.
+
+    However, our previous analysis of self-stability breaks down here. Let us consider a perturbation with two eigenvectors at the edge of stability, $xu = x_1 u_1 + x_2 u_2$. The second order term is
+    
+    $$\nabla L(\hat{w} + x u) = \nabla L + x \lambda (\hat{w}) u + \frac{1}{2}x^2 \nabla \lambda (\hat{w}) + O(x^3 \|u\|^3)$$
+
+    In general, there is more than one eigenvector at the EOS (more than one eigenvector sharpens). Empirically, we find the same self-stabilization occurs, but the dynamics are much more chaotic.
+
+    <p>These two effects also occur for other eigenvalues - they progressively sharpen, until they reach the threshold and self-stabilize. When multiple eigenvalues are at the edge simultaneously, the training loss becomes extremely chaotic. You'll see this in the next experiment, which tracks three eigenvalues at once.</p>
+
+    
+    <h2>Relation to Gradient Flow</h2>
+
+    Revise this. We've talked about gradient flow. We can use it to study how progressive sharpening happens.
+
+
+    <p>In the limit of infinitesimal learning rates, gradient descent becomes a continuous differential equation called <strong>gradient flow</strong>:</p>
+
+    $$\frac{d w(t)}{dt} = - \nabla L(w(t))$$
+
+    <p>Gradient flow is much easier to analyze than discrete gradient descent.</p>
+      
+    <p>It turns out gradient flow approximates finite learning rates well as long as the sharpness is below the $2/\eta$ threshold. In this regime, networks trained with different learning rates follow nearly identical trajectories in both loss and sharpness (when plotted against $\eta \cdot \text{step}$, which rescales time to account for the different step sizes). Try this in the next experiment: run three learning rates with "η·step" plotting.</p>
+      
+
+    
+
+      However, it also interacts with curvature in a more complex way than plain gradient descent, and can make the system less stable.</p>
+      
+      
+      along consistent gradient directions, and can help escape shallow local minima. However, it also interacts with curvature in a more complex way than plain gradient descent, and can make the system less stable.</p>
+      
+      which can accelerate convergence along consistent gradient directions. However, it also interacts with curvature in a more complex way than plain gradient descent, and can make the system less stable.</p>
+      
+      The effect of momentum can be analyzed by studying the quadratic case again. Using 1D for simplicity, the momentum update is:</p>
+      
+      
+      Momentum methods like Nesterov momentum maintain a velocity term that accumulates past gradients. On a quadratic $L(w) = \frac{1}{2}w^\top A w + b^\top w$, the Nesterov update is:</p>
+
+            
+      
+      
+      Adaptive gradient methods like Adam and RMSProp take a different approach to the oscillation problem. Rather than accelerating along consistent gradient directions (as momentum does), they normalize each parameter's update by a running estimate of its gradient variance. Parameters with large, oscillating gradients get automatically downscaled.</p>
+
+    <p>This connects directly to the edge of stability. Recall that at the EOS, the gradient oscillates along the top Hessian eigenvector $u$. These oscillations produce large gradient variance precisely in the directions that are causing instability. Adam's denominator — the square root of the exponential moving average of squared gradients — naturally suppresses updates in these directions, effectively reducing the oscillation amplitude without requiring the sharpness to drop.</p>
+
+    <p>From the central flow perspective, this is illuminating. The sharpness penalty $\frac{1}{2}\sigma^2 \nabla\lambda$ that arises from oscillations is doing useful work — it pushes the network toward flatter regions. But it does so through noisy, spiky dynamics. Adaptive methods achieve a similar effect more smoothly: by dampening the oscillatory components, they reduce the need for the self-stabilization mechanism to kick in, resulting in more stable training with less sensitivity to the choice of learning rate.</p>
+
+    <p>This offers one explanation for why Adam requires less learning rate tuning than SGD in practice. The adaptive normalization automatically manages the curvature-learning rate interaction that would otherwise require careful manual tuning.</p>
+
+    
+<p>Adaptive optimizers maintain a running estimate of each parameter's gradient variance — parameters that oscillate heavily get automatically downscaled. This is exactly what's needed at the edge of stability: the oscillations along the top eigenvector produce large gradient variance in precisely the directions causing instability, and adaptive methods suppress them. Rather than waiting for the slow self-stabilization mechanism to steer the network out of the unstable region, adaptive optimizers suppress oscillations directly while maintaining fast convergence. This may partly explain why Adam requires less learning rate tuning than plain gradient descent.</p>
+
+    <p>Adaptive gradient methods like Adam adjust their learning rates based on recent gradients. Although it is unknown why Adam is so effective, it seems like beneficial effects at the edge of stability offer a partial explanation.</p>
+
+    <p>Our analysis has largely focused on the assumption of a fixed learning rate shared by all parameters, but variants of gradient descent with different learning rates for different parameters are not much more complicated. Instead of the eigenvectors of the Hessian A, we instead consider eigenvectors of the matrix $PA$, where P is a diagonal matrix representing the individual learning rates of different parameters.</p>
+
+    <p>Adjusting these learning rates would allow us to reduce the eigenvalues of the largest eigenvectors when they reach the edge of stability. This turns out to be exactly what happens in adaptive optimizers: by keeping a running estimate of the variance of each parameters updates, adaptive optimizers are able to estimate which parameters oscillate a lot and automatically shrink their learning rates. This reduces the effect of oscillations significantly, and allows our networks to train more stably in sharper regions of parameter space.</p>
+
+    <p>Although our analysis has shown that networks will eventually reduce oscillations by steering themselves out of the unstable region, adaptive optimizers are able to efficiently suppress oscillations while ensuring fast convergence. Thus the edge of stability appears to be linked to the success of Adam, which relies less on finetuned learning rates for fast convergence.</p>
+
+     <h3>A Visualization Of Self Stabilization</h3>
+
+    <p>We demonstrate these effects by visualizing a pair of EOS oscillations in a small MLP on CIFAR10. We project the network parameters along three axes: sharpness gradient $\nabla \lambda$, the largest eigenvector $u$, and the gradient with the first two components removed. These directions all change slightly over the two oscillations, so we plot using the average direction over the trajectory. We also include arrows indicating the direction of the gradient along $\nabla \lambda$ and along $u$ in the edge of stability, so you can see how different terms become stronger in different regimes.</p>
+
+    <p>As a baseline, we show a trajectory trained with a much smaller learning rate. This makes the behaviour caused by the edge of stability much more clear.</p>
+
+    <p>Initially, the trajectory is the same as the baseline without edge of stability effects. Note that $\nabla L$ has initial components along $\nabla \lambda$ (which causes progressive sharpening) and along $u$.</p>
+
+    <p>Upon hitting the edge of stability, the $u$ component starts to oscillate, dominating the gradient. The trajectory diverges from the baseline.</p>
+
+    <p>Eventually oscillations become so large that the third order Taylor term starts to counteract the progressive sharpening, pushing the trajectory in a direction that reduces sharpness.</p>
+
+    <p>When the sharpness is below the threshold, oscillations shrink. This causes the third order term to weaken.</p>
+
+    <p>Eventually oscillations die down, and the network begins evolving normally again. Progressive sharpening dominates here, pushing the trajectory back into the edge of stability.</p>
+
+    <p>By playing around with this widget, you can see all the effects described. Note that in general, the sharpness gradient $\nabla \lambda$ and the largest eigenvector $u$ are not orthogonal. What we plot is a projection, rather than a decomposition, and we show the fraction of the gradient norm missed by the projection at each step.</p>

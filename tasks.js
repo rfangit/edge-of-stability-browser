@@ -7,9 +7,9 @@
 //
 // The dataset is generated once when training starts, then passed to the Trainer.
 // x[i] is always an array (even for 1D inputs: [0.5]).
-// y[i] is a scalar for regression tasks, or an array for multi-output (Fashion MNIST).
+// y[i] is a scalar for single-output regression tasks, or an array for multi-output tasks.
 
-import { CHEBYSHEV_DEFAULTS, TOY_MULTIDIM_DEFAULTS, FASHION_MNIST_DEFAULTS, LINEAR_REGRESSION_DEFAULTS, toAppStateFormat, describeDefaults } from './defaults.js';
+import { CHEBYSHEV_DEFAULTS, TOY_MULTIDIM_DEFAULTS, LINEAR_REGRESSION_DEFAULTS, toAppStateFormat, describeDefaults } from './defaults.js';
 
 // ============================================================================
 // CHEBYSHEV POLYNOMIAL
@@ -85,80 +85,6 @@ function generateToyMultiDim(params) {
   }
 
   return { x, y };
-}
-
-// ============================================================================
-// FASHION MNIST SUBSET - loads from precomputed binary file
-// ============================================================================
-
-// Cache for loaded Fashion MNIST data (loaded once, reused)
-let fashionMnistCache = null;
-let fashionMnistLoadPromise = null;
-
-/**
- * Load Fashion MNIST binary file and parse into { x: number[][], y: number[][] }.
- * File format:
- *   - 4 bytes: uint32 LE, number of images (N)
- *   - 4 bytes: uint32 LE, pixels per image (784 for 28×28)
- *   - N bytes: uint8 labels (0-9)
- *   - N*784 bytes: uint8 pixel data (0-255)
- *
- * Returns normalized pixels [0,1] and one-hot labels.
- */
-async function loadFashionMNISTBinary(url = 'fashion_mnist_subset.bin') {
-  if (fashionMnistCache) return fashionMnistCache;
-
-  if (fashionMnistLoadPromise) return fashionMnistLoadPromise;
-
-  fashionMnistLoadPromise = (async () => {
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`Failed to load Fashion MNIST data: ${response.status}`);
-
-    const buffer = await response.arrayBuffer();
-    const view = new DataView(buffer);
-
-    const N = view.getUint32(0, true);
-    const dim = view.getUint32(4, true);
-    const headerSize = 8;
-
-    const labelsRaw = new Uint8Array(buffer, headerSize, N);
-    const pixelsRaw = new Uint8Array(buffer, headerSize + N, N * dim);
-
-    const x = [];
-    const y = [];
-
-    for (let i = 0; i < N; i++) {
-      const pixel = new Array(dim);
-      const offset = i * dim;
-      for (let j = 0; j < dim; j++) {
-        pixel[j] = pixelsRaw[offset + j] / 255;
-      }
-      x.push(pixel);
-
-      const oneHot = new Array(10).fill(0);
-      oneHot[labelsRaw[i]] = 1;
-      y.push(oneHot);
-    }
-
-    fashionMnistCache = { x, y };
-    return fashionMnistCache;
-  })();
-
-  return fashionMnistLoadPromise;
-}
-
-function generateFashionMNIST(params) {
-  if (fashionMnistCache) {
-    return { x: fashionMnistCache.x, y: fashionMnistCache.y };
-  }
-  throw new Error('Fashion MNIST data not loaded yet. Call preloadFashionMNIST() first.');
-}
-
-/**
- * Preload Fashion MNIST data. Call this before starting a Fashion MNIST simulation.
- */
-export async function preloadFashionMNIST() {
-  return loadFashionMNISTBinary();
 }
 
 // ============================================================================
@@ -318,33 +244,6 @@ export const TASKS = {
       description: describeDefaults(TOY_MULTIDIM_DEFAULTS) + `, ${TOY_MULTIDIM_DEFAULTS.taskParams.nTrain} training points, noise = ${TOY_MULTIDIM_DEFAULTS.taskParams.noise}`,
       values: {
         ...toAppStateFormat(TOY_MULTIDIM_DEFAULTS),
-      }
-    }
-  },
-
-  fashionMnist: {
-    label: 'Fashion MNIST (28×28)',
-    inputDim: 784,
-    outputDim: 10,
-    generateDataset: generateFashionMNIST,
-    formula: '$$\\mathbf{y} = \\mathrm{onehot}(\\text{class}),\\; \\mathbf{x} \\in \\mathbb{R}^{784}$$<div style="font-size: 12px; color: #999; margin-top: 4px;">28×28, 25 images per class, 250 total</div>',
-    requiresPreload: true,
-
-    params: {
-      // No user-configurable params — dataset is fixed
-    },
-
-    hiddenDimRange: { min: 10, max: 200, default: 30 },
-
-    defaults: {
-      eta: 0.5,
-      batchSize: 250  // full batch
-    },
-
-    recommended: {
-      description: describeDefaults(FASHION_MNIST_DEFAULTS),
-      values: {
-        ...toAppStateFormat(FASHION_MNIST_DEFAULTS),
       }
     }
   },

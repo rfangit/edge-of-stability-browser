@@ -160,8 +160,6 @@ export class Simulation {
   }
 
   /**
-   * Continue training from another simulation's final state.
-  /**
    * Continue training from another simulation's final model state.
    * Deep-copies the model weights and prepends the prior histories.
    * Must call captureParams first (can use same or different eta/batchSize).

@@ -4,7 +4,7 @@
 
 // ---- Config ----
 const DATA_PATH   = 'runs/cifar10_sharp/gradient_displacement_data.json';
-const AXIS_LABELS = ['∇L ⊥ v₁ ', 'sharpness λ₁', 'eigenvector v₁ displacement'];
+const AXIS_LABELS = ['∇L ⊥ u₁ ', 'sharpness λ₁', 'eigenvector u₁ displacement'];
 const AXIS_COLORS = ['#c01818', '#0a8c25', '#1830cc'];
 const LINE_WIDTH  = 2.0;
 const GHOST_ALPHA = 0.12;

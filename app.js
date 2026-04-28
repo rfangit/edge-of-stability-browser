@@ -5,7 +5,7 @@
 import { AppState } from './state.js';
 import { Simulation } from './simulation.js';
 import { LossChart, RightChart } from './visualization.js';
-import { TASKS, preloadFashionMNIST } from './tasks.js';
+import { TASKS } from './tasks.js';
 import { initTutorialWidgets } from './tutorial.js';
 import { CHEBYSHEV_DEFAULTS, toAppStateFormat } from './defaults.js';
 import { SavedRunsManager } from './saved-runs.js';
@@ -522,21 +522,6 @@ startPauseButton.addEventListener('click', async () => {
     // Hide any previous error message
     const errorEl = document.getElementById('divergeError');
     if (errorEl) errorEl.style.display = 'none';
-
-    // If task requires async preload (Fashion MNIST), do it first
-    if (task.requiresPreload) {
-      startPauseButton.textContent = 'loading data...';
-      startPauseButton.disabled = true;
-      try {
-        await preloadFashionMNIST();
-      } catch (e) {
-        console.error('Failed to preload data:', e);
-        startPauseButton.textContent = 'start';
-        startPauseButton.disabled = false;
-        return;
-      }
-      startPauseButton.disabled = false;
-    }
 
     const hiddenDims = appState.useSecondLayer
       ? [appState.hiddenDim1, appState.hiddenDim2]

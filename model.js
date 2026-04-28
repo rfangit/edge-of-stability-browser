@@ -1,8 +1,8 @@
 // ============================================================================
 // MODEL - Generic MLP with muP initialization
 // ============================================================================
-// Supports 1 or 2 hidden layers, any input/output dimension.
-// Activation can be 'tanh', 'relu', or 'linear'.
+// Supports any number of hidden layers, any input/output dimension.
+// Activation can be 'tanh', 'relu', 'gelu', or 'linear'.
 //
 // Initialization (muP-inspired):
 //   All layers: W_ij ~ N(0, 1 / fan_in)
@@ -14,9 +14,9 @@
 // overridden explicitly via the options object: new MLP(sizes, act, seed, scale, { useBias: true }).
 //
 // Usage:
-//   const net = new MLP([1, 100, 1]);                // tanh by default
+//   const net = new MLP([1, 100, 1]);                 // tanh by default
 //   const net = new MLP([1, 100, 1], 'relu');         // ReLU activation
-//   const net = new MLP([784, 100, 50, 10], 'tanh');  // MNIST with tanh
+//   const net = new MLP([4, 50, 50, 1], 'gelu');      // 4D input, GeLU
 //   const { output } = net.forward([0.5]);            // input is always an array
 
 export class MLP {
@@ -25,7 +25,7 @@ export class MLP {
    *   First element is input dim.
    *   Last element is output dim.
    *   Middle elements are hidden layer widths.
-   * @param {string} activation - 'tanh' (default) or 'relu'
+   * @param {string} activation - 'tanh' (default), 'relu', 'gelu', or 'linear'
    */
   constructor(layerSizes, activation = 'tanh', seed = null, initScale = 1.0, { useBias } = {}) {
     this.layerSizes = layerSizes;

@@ -247,7 +247,7 @@
 
     <p>And yet, it isn't. Zoom out, and the loss is still going down. The network is still learning. It has found a way to balance itself, training at what is called the edge of stability.</p>
 
-    <p>While neural network training is generally very difficult to analyze, it turns out we can understand several properties of this regime. In this article, we'll build up an explanation from first principles, run experiments directly in the browser, and see what this regime tells us about why certain training choices like adaptive optimizers work as well as they do.</p>
+    <p>While neural network training is generally very difficult to analyze, it turns out we can understand several properties of this regime. In this article, we'll build up an explanation from first principles and run experiments directly in the browser. <strong>(Probably needs more motivation.)</strong></p>
 
     <!-- ==================== SECTION: Edge of Stability  ==================== -->
 
@@ -263,7 +263,7 @@
 
     <p>A network with 100 parameters yields a 100-dimensional nonlinear differential equation where the different weight dynamics are nontrivially coupled. Analyzing this is hard even for small models with synthetic data. And this is ignoring the difficulties of nonzero learning rates, which introduce their own discretization instabilities on top of all of this.</p>
 
-    <p>Despite this, classical optimization theory gives us one useful foothold: if the learning rate is small enough relative to the curvature of the loss, gradient descent is guaranteed to decrease the loss at every step.<sup><a href="#footnote-smoothness">[N]</a></sup> In other words, curvature determines how aggressively we can optimize.</p>
+    <p>Despite this, classical optimization theory gives us one useful foothold: if the learning rate is small enough relative to the global curvature of the loss, gradient descent is guaranteed to decrease the loss at every step.<sup><a href="#footnote-smoothness">[1]</a></sup> In other words, curvature determines how aggressively we can optimize.</p>
 
     <p>Why does curvature matter? To build intuition, consider a 1D quadratic $L(w) = \frac{1}{2}Sw^2$, where $S$ controls the curvature. The update rule becomes</p>
 
@@ -354,7 +354,7 @@
 
     <p>This quadratic analysis has led past work to suggest the learning rate should be chosen by calculating the Hessian eigenvalue $\lambda_{\max}$. Setting $\eta = 1/\lambda_{\max}$ results in the fastest convergence on a quadratic, avoiding any oscillations (even those that slowly decay).</p>
 
-    <p>However, real loss landscapes are not quadratics. Their curvature varies over training, making this proposal impractical since it would require frequent and expensive Hessian computations to adapt to the changing curvature.</p>
+    <p>However, real loss landscapes are not quadratics. Their curvature varies over training, making this proposal impractical since it would require frequent and expensive Hessian computations to adapt to the changing curvature. <strong>However, the real loss landscape can be approximated by a quadratic in a sufficiently small neighborhood around the current parameters, and thus computing the local sharpness $\lambda_{\max}$ can still be useful for understanding the behavior of gradient descent, such as our previously derived local stability threshold of $2/\eta$.</strong></p>
     
     <p>In fact, inspecting curvature over real training runs reveals an interesting trend - for many tasks, it tends to increase over time. We call this phenomenon <strong>progressive sharpening</strong>. It occurs across a large variety of tasks and models, and appears to be more pronounced for deeper networks.</p>
 
@@ -442,7 +442,11 @@
 
     $$\nabla L(\hat{w} + x u) = \nabla L(\hat{w}) + xH(\hat{w}) u + O(x^2 \|u\|^2)$$
     
-    <p>Since $u$ is an eigenvector, $H(\hat{w}) u = \lambda u$ where $\lambda$ is the corresponding eigenvalue. This term causes oscillations to grow in magnitude when $\lambda > 2/\eta$.</p>
+    <p>Since $u$ is an eigenvector, $H(\hat{w}) u = \lambda u$ where $\lambda$ is the corresponding eigenvalue. Plugging this into gradient descent yields</p>
+
+    $$(\hat{w} + x u) - \eta \nabla L(\hat{w} + x u) = \hat{w} - \eta \nabla L(\hat{w}) + \underset{\text{oscillations along }u}{(1 - \eta \lambda) x u} + O(\eta x^2 \|u\|^2)$$
+      
+    <p>Thus we expect oscillations along the eigenvector $u$ to grow in magnitude when $\lambda > 2/\eta$.</p>
 
     <h3>Third Order Taylor Expansion</h3>
 
@@ -458,7 +462,7 @@
 
     $$\nabla L(\hat{w} + x u) = \nabla L + x \lambda (\hat{w}) u + \frac{1}{2}x^2 \nabla \lambda (\hat{w}) + O(x^3 \|u\|^3)$$
     
-    <p> So the third order term pushes gradient descent into a direction that reduces the sharpness, with strength proportional to the square of oscillations. In the unstable regime where oscillations increase in amplitude, this eventually reaches a point where this term dominates and the gradient points in a direction that reduces the sharpness, counteracting the effect of progressive sharpening.</p>
+    <p> So the third order term pushes gradient descent into a direction that reduces the sharpness, with strength proportional to the square of oscillations. In the unstable regime where oscillations increase in amplitude, this term will eventually dominate and result in a trajectory that reduces sharpness, counteracting the effect of progressive sharpening.</p>
       
     <p>When the sharpness is below the threshold again, oscillations shrink. Then progressive sharpening can occur again, pushing the sharpness back up.</p>
 
@@ -551,7 +555,7 @@
         <li>For many learning rates, the sharpness reaches the $2/\eta$ threshold. The component of the gradient along the largest eigenvector $u$ starts to oscillate. This causes spikes in the loss.</li>
         <li>As oscillations grow, the third order Taylor term becomes stronger, pushing the trajectory in a direction that reduces sharpness.</li>
         <li>As sharpness reduces, the oscillations shrink and the third order term weakens, allowing progressive sharpening to dominate again. The trajectory heads back to the edge of stability, where it oscillates again.</li>
-        <li>Throughout this process, the network makes steady progress to flatter regions of parameter space and lowers the loss overall, albeit with noisy spikes.</li>
+        <li>Throughout this process, the network makes steady progress in lowering the loss overall, albeit with noisy spikes.</li>
     </ul>
 
     <p>The entire process can be visualized directly for a 2-variable model, shown below for $L = (1 - a x^2 - y^2)^2$ below. You can adjust the learning rate and $a$ freely to observe edge of stability behaviour.</p>
@@ -649,7 +653,7 @@
     </div><!-- end .dsn-experiment -->
 
   
-    <p>Generally, a third dimension is generally needed to show that the network makes steady progress to lower loss amidst the oscillations. However, in this 2d model the loss would have reached a minima without oscillations, and the sharpness reducing gradient drives all of the net motion. Thus the dynamics are fully 2D and can be completely visualized.</p>
+    <p>Generally, a third dimension is needed to show that the network makes steady progress to lower loss amidst the oscillations. However, in this 2d model the loss would have reached a minima without oscillations, and the sharpness reducing gradient drives all of the net motion. Thus the dynamics are fully 2D and can be completely visualized.</p>
 
     <h2>Other Eigenvalues</h2>
 
@@ -673,7 +677,19 @@
 
     <p>The first two are the familiar sharpness-reducing terms from the single-eigenvector case. The third is a cross term that couples the two eigenvectors. Although $u_1^T H(\hat{w}) u_2 = 0$ by orthogonality, its gradient is generically nonzero, since the Hessian changes with $w$. This term means the self-stabilization of each eigenvalue depends on the oscillation amplitudes of the others, and the dynamics no longer decompose into independent systems.</p>
 
-    Extending the self-stability analysis to multiple eigenvalues is an open question because of this.
+    Unlike the previous case where only a single eigenvalue undergoes a strong self-stabilization effect, there are now two eigenvalues. We can write down a pair of equations describing how the sharpness changes at a time-averaged iterate $\bar{w}$ (which averages over both oscillations in the large eigenvectors AND the oscillations in sharpness), which now contain additional terms from the pair of eigenvalues.
+
+    $$\begin{aligned}
+    \frac{d\lambda_1}{dt} = \langle \nabla \lambda_1(\bar{w}), \nabla L(w) \rangle \approx\ &\underbrace{-\eta \langle \nabla \lambda_1(\bar{w}), \nabla L(w) \rangle}_{\text{progressive sharpening}} - \eta \langle \nabla \lambda_1, x_1 \lambda_1 u_1 \rangle \underbrace{- \eta \left\langle \nabla \lambda_1, \tfrac{x_1^2}{2} \nabla \lambda_1 \right\rangle}_{\text{self-stabilizing}} \\
+    &- \eta \langle \nabla \lambda_1, x_2 \lambda_2 u_2 \rangle - \eta \left\langle \nabla \lambda_1, \tfrac{x_2^2}{2} \nabla \lambda_2 \right\rangle - \eta \langle \nabla \lambda_1, x_1 x_2 \nabla(u_1^T H u_2) \rangle
+    \end{aligned}$$
+
+    $$\begin{aligned}
+    \frac{d\lambda_2}{dt} = \langle \nabla \lambda_2(\bar{w}), \nabla L(w) \rangle \approx\ &\underbrace{-\eta \langle \nabla \lambda_2(\bar{w}), \nabla L(w) \rangle}_{\text{progressive sharpening}} - \eta \langle \nabla \lambda_2, x_2 \lambda_2 u_2 \rangle \underbrace{- \eta \left\langle \nabla \lambda_2, \tfrac{x_2^2}{2} \nabla \lambda_2 \right\rangle}_{\text{self-stabilizing}} \\
+    &- \eta \langle \nabla \lambda_2, x_1 \lambda_1 u_1 \rangle - \eta \left\langle \nabla \lambda_2, \tfrac{x_1^2}{2} \nabla \lambda_1 \right\rangle - \eta \langle \nabla \lambda_2, x_1 x_2 \nabla(u_1^T H u_2) \rangle
+    \end{aligned}$$
+
+    It is no longer clear that the sharpness-reducing terms will dominate the dynamics, since the cross terms can counteract the single-eigenvector sharpness reduction effects. Extending the self-stability analysis to multiple eigenvalues is an open question because of this.
 
     <p><strong>End sketchy argument.</strong></p>
 
@@ -792,7 +808,7 @@
     \frac{d \hat{w}(t)}{dt} = - \eta \left[\nabla L(\hat{w}(t)) + \underset{\text{sharpness penalty}}{\frac{1}{2}\sigma^2 (t) \nabla \lambda (\hat{w}(t))} \right]
     $$</p>
 
-    <p>where $\sigma^2 (t)$ is a quantity that models the square of the oscillation amplitude. This unknown quantity can be solved for under the condition that the sharpness stays constant at the $2/\eta$ threshold.</p>
+    <p>where $\sigma^2 (t)$ is a quantity that models the square of the oscillation amplitude. This unknown quantity can be solved for under the condition that the sharpness <strong>of the time-averaged trajectory</strong> stays constant at the $2/\eta$ threshold.</p>
 
     <p>This results in a simplified extension of gradient flow that models the mean trajectory of gradient descent even in the edge of stability regime. We show an example of the central flow trajectory for CIFAR10 below, showing the loss and sharpness curves that smooth out the noisy oscillations of gradient descent:</p>
 
@@ -813,8 +829,8 @@
     <p>So far, we've analyzed full-batch gradient descent — the simplest optimization algorithm. In practice, neural networks are trained with momentum, adaptive optimizers, and stochastic minibatches. How do these modifications interact with the edge of stability?</p>
 
     <figure class="tutorial-figure">
-      <img src="imgs/ps_examples.png" alt="Examples of progressive sharpening" style="max-width: 70%;">
-      <figcaption>Training a MLP on a subset of CIFAR10 with full batch GD, momentum, Adam, and SGD. Momentum results in a different (calculable) EOS threshold. Adam suppresses oscillations much faster, as it shrinks the learning rate for the oscillatory components. SGD is inherently noisy, making it hard to detect the EOS or oscillations.</figcaption>
+      <img src="imgs/momentum_eos_comparison.png" alt="Momentum changes the EOS threshold" style="max-width: 70%;">
+      <figcaption>Training a MLP on a subset of CIFAR10 with full batch GD and momentum. Momentum results in a different (calculable) EOS threshold. <strong>Not depicted: </strong> Adam, SGD. Both Adam and SGD optimizers change every epoch (Adam from a pre-conditioner, SGD from noise), so a fixed sharpness threshold is not well defined.</figcaption>
     </figure>
 
     <h3>Momentum</h3>

@@ -13,7 +13,6 @@ const DEFAULTS = {
   taskParams: {
     chebyshev: { ...CHEBYSHEV_DEFAULTS.taskParams, useTestSet: false, nTest: 200 },
     toyMultiDim: { ...TOY_MULTIDIM_DEFAULTS.taskParams, useTestSet: false, nTest: 100 },
-    fashionMnist: { useTestSet: false, nTest: 100 },
     linearRegression: { ...LINEAR_REGRESSION_DEFAULTS.taskParams, useTestSet: false, nTest: 50 }
   },
   activation: chebyshevAppState.activation,
