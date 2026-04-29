@@ -829,7 +829,7 @@
     <p>So far, we've analyzed full-batch gradient descent — the simplest optimization algorithm. In practice, neural networks are trained with momentum, adaptive optimizers, and stochastic minibatches. How do these modifications interact with the edge of stability?</p>
 
     <figure class="tutorial-figure">
-      <img src="imgs/momentum_eos_comparison.png" alt="Momentum changes the EOS threshold" style="max-width: 60%;">
+      <img src="imgs/momentum_eos_comparison.png" alt="Momentum changes the EOS threshold" style="max-width: 55%;">
       <figcaption>Training a MLP on a subset of CIFAR10 with full batch GD and momentum. Momentum results in a different (calculable) EOS threshold. <strong>Not depicted: </strong> Adam, SGD. Both Adam and SGD optimizers change every epoch (Adam from a pre-conditioner, SGD from noise), so a fixed sharpness threshold is not well defined.</figcaption>
     </figure>
 
